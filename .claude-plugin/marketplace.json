@@ -1,0 +1,17 @@
+{
+  "name": "suxiaoqiang",
+  "description": "Superun vibe coding platform tools: the sxq CLI skill for syncing, previewing and releasing Superun projects",
+  "owner": {
+    "name": "AiGuangInc"
+  },
+  "plugins": [
+    {
+      "name": "suxiaoqiang-cli",
+      "source": "./",
+      "description": "superun 应用管理 cli (sxq): sync, preview and release Superun vibe coding projects",
+      "author": {
+        "name": "AiGuangInc"
+      }
+    }
+  ]
+}

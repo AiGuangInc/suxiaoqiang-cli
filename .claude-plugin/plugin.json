@@ -1,0 +1,8 @@
+{
+  "name": "suxiaoqiang-cli",
+  "version": "1.0.0",
+  "description": "superun 应用管理 cli (sxq): sync, preview and release Superun vibe coding projects",
+  "author": {
+    "name": "AiGuangInc"
+  }
+}

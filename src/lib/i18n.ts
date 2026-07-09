@@ -1,0 +1,390 @@
+import { getLang } from './config.js';
+
+export type Lang = 'zh' | 'en';
+
+/** 中文文案（键的权威来源，新增文案先加这里） */
+const zh = {
+  // ── 通用 ──────────────────────────────────────────────
+  'common.notLinked': '当前目录未关联项目，请先执行 sxq link <sessionId>',
+  'common.currentSession': '当前关联 session: {sessionId}',
+  'common.serverFalse': '服务端返回失败 (data: false)',
+  'common.previewUrl': '预览地址: {url}',
+  'common.publishUrl': '访问地址: {url}',
+
+  // ── api ───────────────────────────────────────────────
+  'api.notLoggedIn': '未登录，请先执行 sxq login',
+  'api.tokenExpired': '登录凭证无效或已过期，请重新执行 sxq login{detail}',
+  'api.requestFailed': '请求失败 (code: {code})',
+  'api.nonJson': '服务端返回了非 JSON 内容，可能被网关或登录页拦截，请检查 host 配置与网络环境（--debug 可查看原始响应）',
+
+  // ── prompt ────────────────────────────────────────────
+  'prompt.nonInteractive': '当前为非交互环境，无法完成确认: {message}',
+
+  // ── login ─────────────────────────────────────────────
+  'login.tokenVerifying': '正在校验 token...',
+  'login.tokenInvalid': 'token 无效或已过期，已保留原有登录凭证',
+  'login.reloginConfirm': '已存在登录凭证，是否重新登录？',
+  'login.reloginHint': '如需强制重新登录，请使用 sxq login -y',
+  'login.keepCurrent': '保持当前登录状态',
+  'login.openBrowser': '即将打开浏览器完成授权，如未自动打开请手动访问：',
+  'login.waiting': '等待浏览器授权...',
+  'login.success': '登录成功',
+  'login.tokenSaved': '凭证已安全保存',
+  'login.timeout': '授权超时，请重新执行 sxq login',
+  'login.timeoutTokenHint': '浏览器授权不可用时，也可以使用 sxq login --token <token> 直接登录',
+  'login.failed': '登录失败',
+
+  // ── link ──────────────────────────────────────────────
+  'link.needSessionId': '请提供 sessionId，例如: sxq link <sessionId>',
+  'link.overwriteConfirm': '当前目录已关联项目，是否重新关联？',
+  'link.overwriteHint': '如需覆盖已有关联，请使用 sxq link <sessionId> -y',
+  'link.keep': '保持当前关联',
+  'link.verifying': '正在校验 session 归属...',
+  'link.notOwned': '未找到 session {sessionId}，或它不属于当前登录账号',
+  'link.linking': '正在关联项目...',
+  'link.success': '项目已关联: {sessionId}',
+  'link.topicLabel': '  主题: {topic}',
+  'link.ownerLabel': '  所有者: {owner}',
+  'link.failed': '关联失败',
+
+  // ── pull ──────────────────────────────────────────────
+  'pull.pulling': '正在拉取远程文件...',
+  'pull.fullPulling': '正在全量拉取远程文件...',
+  'pull.listing': '正在获取远程文件列表...',
+  'pull.noRemoteFiles': '远程无可拉取的文件',
+  'pull.writing': '正在写入 {count} 个文件...',
+  'pull.fullDone': '全量拉取完成: {written} 个文件写入, {skipped} 个跳过',
+  'pull.manifestMissing': '清单丢失',
+  'pull.processing': '正在处理变更 ({current}/{total}): {name}',
+  'pull.noChanges': '远程无变更，本地已是最新',
+  'pull.doneWithConflicts': '拉取完成: {updated} 个更新, {merged} 个自动合并, {conflicted} 个冲突',
+  'pull.incrementalDone': '增量拉取完成: {updated} 个更新, {merged} 个自动合并',
+  'pull.restoredHeader': '以下文件本地已删除但远端有更新，已恢复远端版本:',
+  'pull.autoMergedHeader': '已自动合并（远端与本地改动不重叠）:',
+  'pull.conflictHeader': '以下文件存在冲突，已写入 <<<<<<< 标记，请手动解决后再 push:',
+  'pull.removedHeader': '远程已删除 {count} 个文件（本地保留，需要请手动删除）:',
+  'pull.failed': '拉取失败',
+
+  // ── push ──────────────────────────────────────────────
+  'push.checking': 'push 前检查远程变更...',
+  'push.abortConflict': 'push 已中断: 拉取到远程变更且与本地冲突',
+  'push.conflictMarkerHeader': '以下文件已写入 <<<<<<< 冲突标记，请手动解决后重新 push:',
+  'push.scanning': '正在扫描本地改动...',
+  'push.abortUnresolved': 'push 已中断: 存在未解决的合并冲突',
+  'push.unresolvedHeader': '以下文件仍含 <<<<<<< 冲突标记，请解决后重新 push:',
+  'push.noChanges': '本地无改动，无需推送',
+  'push.deletedHeader': '以下文件本地已删除，但接口不支持删除，远端仍保留:',
+  'push.pushing': '正在推送 {count} 个文件...',
+  'push.defaultSummary': 'sxq push: {count} 个文件',
+  'push.updatingManifest': '正在更新本地清单...',
+  'push.notifying': '正在通知模型本次修改...',
+  'push.notifyContent': '我在本地通过 sxq CLI 修改并推送了以下文件{summary}:\n{files}',
+  'push.notifySummarySuffix': '，备注: {message}',
+  'push.success': '推送完成: {count} 个文件',
+  'push.notifyFailed': '文件已推送成功，但通知模型失败: {error}',
+  'push.migrationsBlockedHeader': 'supabase/migrations 下的改动不能通过 push 保存，已跳过（新增迁移请用 sxq db push 执行）:',
+  'push.skippedBinaryHeader': '以下二进制文件已跳过（接口仅支持文本内容）:',
+  'push.skippedLargeHeader': '以下文件超过 {size}MB 已跳过:',
+  'push.failed': '推送失败',
+
+  // ── publish ───────────────────────────────────────────
+  'publish.triggering': '正在触发 debug 发布...',
+  'publish.noMessageId': 'publishDebug 未返回 messageId，无法轮询发布结果',
+  'publish.waiting': '发布中，等待编译完成...',
+  'publish.waitingSeconds': '发布中，等待编译完成... ({seconds}s)',
+  'publish.timeout': '发布超时（{minutes} 分钟），最后状态: {status}',
+  'publish.noneTimeout': '未查询到发布记录（可能未触发或已过期），请重试 sxq publish',
+  'publish.success': 'debug 发布完成',
+  'publish.failed': '发布失败',
+
+  // ── deploy ────────────────────────────────────────────
+  'deploy.querying': '正在查询待上线版本...',
+  'deploy.noVersion': '没有可上线的版本',
+  'deploy.noVersionHint': '请先在 Superun 完成构建（或执行 sxq publish 预览）后再上线',
+  'deploy.republishHeader': '没有待上线版本，将以最新已发布版本重新发布:',
+  'deploy.pendingHeader': '待上线版本:',
+  'deploy.summaryLabel': '  摘要: {text}',
+  'deploy.updatedAtLabel': '  更新时间: {time}',
+  'deploy.regionLabel': '  目标机房: {region}',
+  'deploy.confirm': '确认上线该版本？（上线可能产生云服务费）',
+  'deploy.confirmRepublish': '确认重新发布该版本？（上线可能产生云服务费）',
+  'deploy.confirmHint': '如已知晓云服务费并确认上线，请使用 sxq deploy -y 跳过确认',
+  'deploy.cancelled': '已取消上线',
+  'deploy.triggering': '正在触发上线...',
+  'deploy.republishTriggered': '重新发布已触发',
+  'deploy.republishNoPoll': '重新发布无进度回执，稍后可用 sxq deploy --status 或站点确认',
+  'deploy.waiting': '上线中，等待发布完成...',
+  'deploy.waitingSeconds': '上线中，等待发布完成... ({seconds}s)',
+  'deploy.timeout': '上线超时（{minutes} 分钟），版本仍未变为已发布，请用 sxq deploy --status 或站点后台确认',
+  'deploy.success': '上线完成',
+  'deploy.failed': '上线失败',
+  'deploy.statusQuerying': '正在查询发布版本信息...',
+  'deploy.statusRegion': '目标机房: {region}',
+  'deploy.statusPending': '待上线版本 ({time}):',
+  'deploy.statusNoPending': '无待上线版本',
+  'deploy.statusPublished': '已发布版本 ({count}):',
+  'deploy.statusNoPublished': '暂无已发布版本',
+  'deploy.statusFailed': '查询失败',
+
+  // ── upgrade ───────────────────────────────────────────
+  'upgrade.checking': '正在检查最新版本...',
+  'upgrade.checkFailed': '检查版本失败，请确认网络与 npm 源可用',
+  'upgrade.latest': '已是最新版本 v{version}',
+  'upgrade.found': '发现新版本: v{current} → v{latest}，开始升级...',
+  'upgrade.success': '升级完成: v{latest}',
+  'upgrade.failed': '升级失败，可手动执行: npm install -g {pkg}@latest',
+  'upgrade.available': '发现新版本 v{latest}（当前 v{current}），运行 sxq upgrade 升级',
+
+  // ── config ────────────────────────────────────────────
+  'config.unsupportedKey': '不支持的配置项: {key}（支持: {keys}）',
+  'config.set': '已设置 {key} = {value}',
+  'config.setSecret': '已设置 {key}',
+  'config.notSet': '{key} 未设置',
+  'config.cleared': '已清除 {key}',
+  'config.invalidLang': 'lang 仅支持 zh / en',
+
+  // ── db ────────────────────────────────────────────────
+  'db.scanning': '正在扫描新增迁移文件...',
+  'db.noDir': '未找到 {dir} 目录，无需迁移',
+  'db.noNew': '没有新增的迁移文件',
+  'db.invalidNames': '以下文件命名不符合 <数字>_<描述>.sql 规范，已忽略不执行（与 Supabase CLI 行为一致；数字建议用 yyyyMMddHHmmss）:',
+  'db.executing': '正在执行迁移 ({current}/{total}): {name}',
+  'db.execFailed': '迁移执行失败: {name}',
+  'db.executedBefore': '之前的 {count} 个迁移已执行成功；修复该文件后重新执行 sxq db push 会继续剩余迁移',
+  'db.notifyContent': '我在本地通过 sxq CLI 执行了以下数据库迁移（已生效并保存为附件）:\n{files}',
+  'db.syncing': '正在同步迁移附件...',
+  'db.success': '迁移完成: {count} 个',
+  'db.failed': '迁移失败',
+
+  // ── 命令/选项描述 ─────────────────────────────────────
+  'cmd.program': 'Superun 应用管理 CLI',
+  'cmd.debugOption': '启用调试模式，输出详细日志',
+  'cmd.login': '登录授权',
+  'cmd.loginYes': '已有凭证时直接重新登录，跳过确认',
+  'cmd.loginToken': '直接使用已有 token 登录，跳过浏览器授权（会校验有效性）',
+  'cmd.link': '关联项目 (sxq link <sessionId>)',
+  'cmd.linkArg': '项目 Session ID',
+  'cmd.linkYes': '已关联时直接覆盖，跳过确认',
+  'cmd.pull': '拉取远程代码至本地',
+  'cmd.push': '推送本地代码至远端（会先拉取远程变更，有冲突则中断）',
+  'cmd.pushMessage': '本次推送的备注说明',
+  'cmd.publish': 'debug 发布（预览重编译），并轮询等待编译完成',
+  'cmd.publishMessageId': '指定 replyMessageId，为空走默认"最近一条已完成 AGENT 消息"',
+  'cmd.deploy': '正式上线待发布版本，并轮询等待发布完成',
+  'cmd.deployMessage': '变动记录，默认沿用待上线版本已有的 changeLog',
+  'cmd.deployRegion': '目标机房: CN 主站 / INTL 国际站，默认当前机房',
+  'cmd.deployYes': '跳过确认（含云服务费确认）',
+  'cmd.deployStatus': '只查询版本状态，不触发上线',
+  'cmd.config': '管理 CLI 配置（支持配置项: {keys}）',
+  'cmd.configSet': '设置配置项 (sxq config set host <url>)',
+  'cmd.configGet': '查看配置项 (sxq config get host)',
+  'cmd.configUnset': '清除配置项，恢复默认值',
+  'cmd.configList': '列出当前配置',
+  'cmd.configKeyArg': '配置项名称',
+  'cmd.configValueArg': '配置值',
+  'cmd.upgrade': '升级 sxq 到最新版本',
+  'cmd.db': '数据库相关操作',
+  'cmd.dbPush': '执行数据库迁移',
+} as const;
+
+export type MessageKey = keyof typeof zh;
+
+const en: Record<MessageKey, string> = {
+  'common.notLinked': 'Current directory is not linked to a project. Run sxq link <sessionId> first',
+  'common.currentSession': 'Linked session: {sessionId}',
+  'common.serverFalse': 'Server returned failure (data: false)',
+  'common.previewUrl': 'Preview URL: {url}',
+  'common.publishUrl': 'Live URL: {url}',
+
+  'api.notLoggedIn': 'Not logged in. Run sxq login first',
+  'api.tokenExpired': 'Login credential is invalid or expired. Run sxq login again{detail}',
+  'api.requestFailed': 'Request failed (code: {code})',
+  'api.nonJson': 'The server returned non-JSON content, possibly intercepted by a gateway or login page. Check your host config and network (--debug shows the raw response)',
+
+  'prompt.nonInteractive': 'Non-interactive environment, cannot confirm: {message}',
+
+  'login.tokenVerifying': 'Verifying token...',
+  'login.tokenInvalid': 'Token is invalid or expired; the previous credential was kept',
+  'login.reloginConfirm': 'A login credential already exists. Log in again?',
+  'login.reloginHint': 'Use sxq login -y to force re-login',
+  'login.keepCurrent': 'Keeping current login',
+  'login.openBrowser': 'Opening browser for authorization. If it does not open, visit:',
+  'login.waiting': 'Waiting for browser authorization...',
+  'login.success': 'Logged in',
+  'login.tokenSaved': 'Credential saved securely',
+  'login.timeout': 'Authorization timed out. Run sxq login again',
+  'login.timeoutTokenHint': 'If browser authorization is unavailable, you can also log in directly with sxq login --token <token>',
+  'login.failed': 'Login failed',
+
+  'link.needSessionId': 'Please provide a sessionId, e.g. sxq link <sessionId>',
+  'link.overwriteConfirm': 'This directory is already linked. Re-link?',
+  'link.overwriteHint': 'Use sxq link <sessionId> -y to overwrite the existing link',
+  'link.keep': 'Keeping current link',
+  'link.verifying': 'Verifying session ownership...',
+  'link.notOwned': 'Session {sessionId} was not found or does not belong to the current account',
+  'link.linking': 'Linking project...',
+  'link.success': 'Project linked: {sessionId}',
+  'link.topicLabel': '  Topic: {topic}',
+  'link.ownerLabel': '  Owner: {owner}',
+  'link.failed': 'Link failed',
+
+  'pull.pulling': 'Pulling remote files...',
+  'pull.fullPulling': 'Pulling all remote files...',
+  'pull.listing': 'Fetching remote file list...',
+  'pull.noRemoteFiles': 'No remote files to pull',
+  'pull.writing': 'Writing {count} files...',
+  'pull.fullDone': 'Full pull complete: {written} files written, {skipped} skipped',
+  'pull.manifestMissing': 'Manifest missing',
+  'pull.processing': 'Processing change ({current}/{total}): {name}',
+  'pull.noChanges': 'No remote changes, local is up to date',
+  'pull.doneWithConflicts': 'Pull complete: {updated} updated, {merged} auto-merged, {conflicted} conflicted',
+  'pull.incrementalDone': 'Incremental pull complete: {updated} updated, {merged} auto-merged',
+  'pull.restoredHeader': 'These files were deleted locally but updated remotely; remote version restored:',
+  'pull.autoMergedHeader': 'Auto-merged (remote and local changes do not overlap):',
+  'pull.conflictHeader': 'These files have conflicts, <<<<<<< markers written. Resolve them before push:',
+  'pull.removedHeader': '{count} files were deleted remotely (kept locally, delete manually if needed):',
+  'pull.failed': 'Pull failed',
+
+  'push.checking': 'Checking remote changes before push...',
+  'push.abortConflict': 'Push aborted: remote changes conflict with local files',
+  'push.conflictMarkerHeader': 'These files have <<<<<<< conflict markers written. Resolve them and push again:',
+  'push.scanning': 'Scanning local changes...',
+  'push.abortUnresolved': 'Push aborted: unresolved merge conflicts',
+  'push.unresolvedHeader': 'These files still contain <<<<<<< conflict markers. Resolve them and push again:',
+  'push.noChanges': 'No local changes, nothing to push',
+  'push.deletedHeader': 'These files were deleted locally, but the API does not support deletion; they remain remotely:',
+  'push.pushing': 'Pushing {count} files...',
+  'push.defaultSummary': 'sxq push: {count} files',
+  'push.updatingManifest': 'Updating local manifest...',
+  'push.notifying': 'Notifying the model about this change...',
+  'push.notifyContent': 'I modified and pushed the following files locally via the sxq CLI{summary}:\n{files}',
+  'push.notifySummarySuffix': ' (note: {message})',
+  'push.success': 'Push complete: {count} files',
+  'push.notifyFailed': 'Files pushed successfully, but failed to notify the model: {error}',
+  'push.migrationsBlockedHeader': 'Changes under supabase/migrations cannot be saved via push and were skipped (run new migrations with sxq db push):',
+  'push.skippedBinaryHeader': 'Skipped binary files (the API only supports text content):',
+  'push.skippedLargeHeader': 'Skipped files larger than {size}MB:',
+  'push.failed': 'Push failed',
+
+  'publish.triggering': 'Triggering debug publish...',
+  'publish.noMessageId': 'publishDebug did not return a messageId; cannot poll for the result',
+  'publish.waiting': 'Publishing, waiting for compilation...',
+  'publish.waitingSeconds': 'Publishing, waiting for compilation... ({seconds}s)',
+  'publish.timeout': 'Publish timed out ({minutes} min), last status: {status}',
+  'publish.noneTimeout': 'No publish record found (not triggered or expired). Try sxq publish again',
+  'publish.success': 'Debug publish complete',
+  'publish.failed': 'Publish failed',
+
+  'deploy.querying': 'Querying pending release version...',
+  'deploy.noVersion': 'No version available to release',
+  'deploy.noVersionHint': 'Build in Superun first (or run sxq publish to preview) before releasing',
+  'deploy.republishHeader': 'No pending version; the latest published version will be republished:',
+  'deploy.pendingHeader': 'Pending release version:',
+  'deploy.summaryLabel': '  Summary: {text}',
+  'deploy.updatedAtLabel': '  Updated: {time}',
+  'deploy.regionLabel': '  Target region: {region}',
+  'deploy.confirm': 'Release this version? (cloud service fees may apply)',
+  'deploy.confirmRepublish': 'Republish this version? (cloud service fees may apply)',
+  'deploy.confirmHint': 'If you acknowledge the cloud service fee, use sxq deploy -y to skip confirmation',
+  'deploy.cancelled': 'Release cancelled',
+  'deploy.triggering': 'Triggering release...',
+  'deploy.republishTriggered': 'Republish triggered',
+  'deploy.republishNoPoll': 'Republish has no progress feedback; check later with sxq deploy --status or on the site',
+  'deploy.waiting': 'Releasing, waiting for completion...',
+  'deploy.waitingSeconds': 'Releasing, waiting for completion... ({seconds}s)',
+  'deploy.timeout': 'Release timed out ({minutes} min) and the version is still not published. Check with sxq deploy --status or the site console',
+  'deploy.success': 'Release complete',
+  'deploy.failed': 'Release failed',
+  'deploy.statusQuerying': 'Querying release versions...',
+  'deploy.statusRegion': 'Target region: {region}',
+  'deploy.statusPending': 'Pending version ({time}):',
+  'deploy.statusNoPending': 'No pending version',
+  'deploy.statusPublished': 'Published versions ({count}):',
+  'deploy.statusNoPublished': 'No published versions yet',
+  'deploy.statusFailed': 'Query failed',
+
+  'upgrade.checking': 'Checking for the latest version...',
+  'upgrade.checkFailed': 'Version check failed. Verify your network and npm registry',
+  'upgrade.latest': 'Already up to date (v{version})',
+  'upgrade.found': 'New version available: v{current} → v{latest}, upgrading...',
+  'upgrade.success': 'Upgraded to v{latest}',
+  'upgrade.failed': 'Upgrade failed. Run manually: npm install -g {pkg}@latest',
+  'upgrade.available': 'New version v{latest} available (current v{current}). Run sxq upgrade to update',
+
+  'config.unsupportedKey': 'Unsupported config key: {key} (supported: {keys})',
+  'config.set': 'Set {key} = {value}',
+  'config.setSecret': 'Set {key}',
+  'config.notSet': '{key} is not set',
+  'config.cleared': 'Cleared {key}',
+  'config.invalidLang': 'lang only supports zh / en',
+
+  'db.scanning': 'Scanning for new migration files...',
+  'db.noDir': 'Directory {dir} not found, nothing to migrate',
+  'db.noNew': 'No new migration files',
+  'db.invalidNames': 'These files do not match the <digits>_<memo>.sql naming and were skipped (same as the Supabase CLI; a yyyyMMddHHmmss timestamp is recommended for the digits):',
+  'db.executing': 'Executing migration ({current}/{total}): {name}',
+  'db.execFailed': 'Migration failed: {name}',
+  'db.executedBefore': 'The previous {count} migrations succeeded; fix this file and rerun sxq db push to continue with the rest',
+  'db.notifyContent': 'I executed the following database migrations locally via the sxq CLI (applied and saved as attachments):\n{files}',
+  'db.syncing': 'Syncing migration attachments...',
+  'db.success': 'Migrations complete: {count}',
+  'db.failed': 'Migration failed',
+
+  'cmd.program': 'Superun app management CLI',
+  'cmd.debugOption': 'Enable debug mode with verbose logs',
+  'cmd.login': 'Log in and authorize',
+  'cmd.loginYes': 'Re-login directly without confirmation if a credential exists',
+  'cmd.loginToken': 'Log in with an existing token, skipping browser authorization (validated first)',
+  'cmd.link': 'Link a project (sxq link <sessionId>)',
+  'cmd.linkArg': 'Project session ID',
+  'cmd.linkYes': 'Overwrite an existing link without confirmation',
+  'cmd.pull': 'Pull remote code to local',
+  'cmd.push': 'Push local code to remote (pulls remote changes first; aborts on conflict)',
+  'cmd.pushMessage': 'Note for this push',
+  'cmd.publish': 'Debug publish (preview recompile) and poll until compilation completes',
+  'cmd.publishMessageId': 'Specify replyMessageId; defaults to the latest completed AGENT message',
+  'cmd.deploy': 'Release the pending version and poll until it completes',
+  'cmd.deployMessage': 'Changelog; defaults to the pending version\'s existing changelog',
+  'cmd.deployRegion': 'Target region: CN (main) / INTL (international); defaults to the current region',
+  'cmd.deployYes': 'Skip confirmation (including the cloud service fee)',
+  'cmd.deployStatus': 'Only query version status without releasing',
+  'cmd.config': 'Manage CLI config (supported keys: {keys})',
+  'cmd.configSet': 'Set a config value (sxq config set host <url>)',
+  'cmd.configGet': 'Show a config value (sxq config get host)',
+  'cmd.configUnset': 'Clear a config value and restore the default',
+  'cmd.configList': 'List current config',
+  'cmd.configKeyArg': 'Config key',
+  'cmd.configValueArg': 'Config value',
+  'cmd.upgrade': 'Upgrade sxq to the latest version',
+  'cmd.db': 'Database operations',
+  'cmd.dbPush': 'Run database migration',
+};
+
+const tables: Record<Lang, Record<MessageKey, string>> = { zh, en };
+
+let cached: Lang | undefined;
+
+/** 语言优先级: config lang > 环境变量(LC_ALL/LC_MESSAGES/LANG, zh* 为中文) > 英文 */
+export function currentLang(): Lang {
+  if (!cached) {
+    const configured = getLang();
+    if (configured === 'zh' || configured === 'en') {
+      cached = configured;
+    } else {
+      const env = process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG || '';
+      cached = env.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    }
+  }
+  return cached;
+}
+
+/** 取文案，{name} 占位符用 params 替换 */
+export function t(key: MessageKey, params?: Record<string, string | number>): string {
+  let msg: string = tables[currentLang()][key];
+  if (params) {
+    for (const [name, value] of Object.entries(params)) {
+      msg = msg.replaceAll(`{${name}}`, String(value));
+    }
+  }
+  return msg;
+}

@@ -1,0 +1,58 @@
+{
+  "name": "suxiaoqiang-cli",
+  "version": "1.0.0",
+  "description": "superun 应用管理 cli",
+  "type": "module",
+  "bin": {
+    "sxq": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "keywords": [
+    "superun",
+    "cli",
+    "vibe-coding",
+    "infrastructure"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AiGuangInc/suxiaoqiang-cli.git"
+  },
+  "homepage": "https://github.com/AiGuangInc/suxiaoqiang-cli#readme",
+  "bugs": {
+    "url": "https://github.com/AiGuangInc/suxiaoqiang-cli/issues"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "conf": "^13.0.1",
+    "ignore": "^7.0.5",
+    "inquirer": "^9.3.7",
+    "node-diff3": "^3.2.1",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.14.0",
+    "tsup": "^8.1.0",
+    "typescript": "^5.5.0"
+  }
+}

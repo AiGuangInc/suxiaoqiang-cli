@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# 本地测试项目（含真实 session 信息，不入库）
+example/
+
+# 本地素材（GitHub 头像等，网页端上传，不入库）
+assets/
