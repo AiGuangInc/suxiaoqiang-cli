@@ -11,6 +11,15 @@ export interface ApiResponse<T = unknown> {
   statusCode?: string;
 }
 
+/** canDownloadCode 请求参数 */
+export interface CanDownloadCodeParams {
+  sessionId: string;
+  accId?: number;
+  userId?: number;
+  __product?: number;
+  orgId?: number;
+}
+
 /** Session 附件项 */
 export interface SessionAttachment {
   createdAt: string;

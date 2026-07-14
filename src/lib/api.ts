@@ -2,7 +2,7 @@ import { getApiBase, getToken, getServiceChain, getTsid } from './config.js';
 import { logger } from './logger.js';
 import { debug, isDebug } from './debug.js';
 import { t } from './i18n.js';
-import type { ApiResponse, BatchManualModifyParams, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachment, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
+import type { ApiResponse, BatchManualModifyParams, CanDownloadCodeParams, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachment, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
 
 /** 解析 JSON 响应；网关/登录页拦截时服务端会返回 HTML，给出可操作的报错而非 JSON 解析异常 */
 async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
@@ -118,6 +118,15 @@ export async function pollCliToken(uuid: string): Promise<string | null> {
     return null;
   }
   return json.data;
+}
+
+/** 检查当前账号是否可以下载指定会话的代码 */
+export async function canDownloadCode(params: CanDownloadCodeParams): Promise<boolean> {
+  const response = await request<boolean>(
+    '/api/uxa-center/agent/AgentQuery/canDownloadCode',
+    params as unknown as Record<string, unknown>
+  );
+  return response.data;
 }
 
 /** 查询 Session 附件（排除内部和编译产物） */

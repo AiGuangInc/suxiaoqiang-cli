@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { getProjectConfig } from '../lib/config.js';
-import { querySessionAttachments, queryAttachment } from '../lib/api.js';
+import { canDownloadCode, querySessionAttachments, queryAttachment } from '../lib/api.js';
 import { buildAttachmentTree, flattenTree, loadManifest, saveManifest, getManifestPath, hashContent } from '../lib/manifest.js';
 import { threeWayMerge } from '../lib/merge.js';
 import { logger } from '../lib/logger.js';
@@ -215,6 +215,13 @@ async function incrementalPull(sessionId: string, spinner: Ora, ig: SyncIgnore):
 
 /** 执行一次拉取（自动判断全量/增量），供 pull 命令和 push 前置检查复用 */
 export async function runPull(sessionId: string, spinner: Ora): Promise<PullResult> {
+  spinner.text = t('pull.checkingDownloadPermission');
+  const downloadable = await canDownloadCode({ sessionId });
+  debug('canDownloadCode', downloadable);
+  if (!downloadable) {
+    throw new Error(t('common.codeDownloadDenied'));
+  }
+
   const manifest = await loadManifest();
   // 清单不存在或 session 不匹配（重新 link 过）时走全量
   const isFull = !manifest || manifest.sessionId !== sessionId;

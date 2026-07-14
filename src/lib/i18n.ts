@@ -8,6 +8,7 @@ const zh = {
   'common.notLinked': '当前目录未关联项目，请先执行 sxq link <sessionId>',
   'common.currentSession': '当前关联 session: {sessionId}',
   'common.serverFalse': '服务端返回失败 (data: false)',
+  'common.codeDownloadDenied': '当前账号无权下载该项目代码',
   'common.previewUrl': '预览地址: {url}',
   'common.publishUrl': '访问地址: {url}',
 
@@ -39,6 +40,7 @@ const zh = {
   'link.overwriteConfirm': '当前目录已关联项目，是否重新关联？',
   'link.overwriteHint': '如需覆盖已有关联，请使用 sxq link <sessionId> -y',
   'link.keep': '保持当前关联',
+  'link.checkingDownloadPermission': '正在校验代码下载权限...',
   'link.verifying': '正在校验 session 归属...',
   'link.notOwned': '未找到 session {sessionId}，或它不属于当前登录账号',
   'link.linking': '正在关联项目...',
@@ -49,6 +51,7 @@ const zh = {
 
   // ── pull ──────────────────────────────────────────────
   'pull.pulling': '正在拉取远程文件...',
+  'pull.checkingDownloadPermission': '正在校验代码下载权限...',
   'pull.fullPulling': '正在全量拉取远程文件...',
   'pull.listing': '正在获取远程文件列表...',
   'pull.noRemoteFiles': '远程无可拉取的文件',
@@ -193,6 +196,7 @@ const en: Record<MessageKey, string> = {
   'common.notLinked': 'Current directory is not linked to a project. Run sxq link <sessionId> first',
   'common.currentSession': 'Linked session: {sessionId}',
   'common.serverFalse': 'Server returned failure (data: false)',
+  'common.codeDownloadDenied': 'The current account is not allowed to download this project\'s code',
   'common.previewUrl': 'Preview URL: {url}',
   'common.publishUrl': 'Live URL: {url}',
 
@@ -220,6 +224,7 @@ const en: Record<MessageKey, string> = {
   'link.overwriteConfirm': 'This directory is already linked. Re-link?',
   'link.overwriteHint': 'Use sxq link <sessionId> -y to overwrite the existing link',
   'link.keep': 'Keeping current link',
+  'link.checkingDownloadPermission': 'Checking code download permission...',
   'link.verifying': 'Verifying session ownership...',
   'link.notOwned': 'Session {sessionId} was not found or does not belong to the current account',
   'link.linking': 'Linking project...',
@@ -229,6 +234,7 @@ const en: Record<MessageKey, string> = {
   'link.failed': 'Link failed',
 
   'pull.pulling': 'Pulling remote files...',
+  'pull.checkingDownloadPermission': 'Checking code download permission...',
   'pull.fullPulling': 'Pulling all remote files...',
   'pull.listing': 'Fetching remote file list...',
   'pull.noRemoteFiles': 'No remote files to pull',
