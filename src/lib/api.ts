@@ -158,7 +158,7 @@ export async function glowConsultChat(params: GlowConsultChatParams): Promise<Gl
   return response.data;
 }
 
-/** 批量保存附件（push） */
+/** 批量保存/删除附件（push） */
 export async function batchManualModify(params: BatchManualModifyParams): Promise<boolean> {
   const response = await request<boolean>(
     '/api/uxa-center/agent/AgentCommand/batchManualModify',

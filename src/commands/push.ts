@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '../lib/logger.js';
 import { getProjectConfig } from '../lib/config.js';
-import { batchManualModify, glowConsultChat, querySessionAttachments } from '../lib/api.js';
+import { batchManualModify, querySessionAttachments } from '../lib/api.js';
 import { buildAttachmentTree, flattenTree, hashContent, loadManifest, saveManifest } from '../lib/manifest.js';
 import { runPull } from './pull.js';
 import { MIGRATIONS_DIR } from './db/push.js';
@@ -68,7 +68,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       process.exit(1);
     }
 
-    // ── 2. 对比清单，找出本地修改/新增的文件 ─────────────
+    // ── 2. 对比清单，找出本地新增/修改/删除的文件 ───────
     spinner.start(t('push.scanning'));
     const manifest = await loadManifest();
     const baseline = manifest ? flattenTree(manifest.tree) : new Map();
@@ -116,10 +116,19 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       process.exit(1);
     }
 
-    // 迁移文件必须走 sxq db push（服务端执行成功后自动落附件），push 一律拦下
-    const blockedMigrations = toPush
-      .filter((f) => f.filename.startsWith(`${MIGRATIONS_DIR}/`))
-      .map((f) => f.filename);
+    // 只有带 hash 的清单项才是曾写入本地的文本文件；无 hash 的项可能是未落盘的二进制附件，不能误删
+    // 被忽略的文件也不参与删除判定（可能只是新加了 ignore 规则）
+    const deletedLocally = [...baseline.entries()]
+      .filter(([path, meta]) => meta.hash && !ig.ignores(path) && !existsSync(join(process.cwd(), path)))
+      .map(([path]) => path);
+
+    // 迁移文件必须走 sxq db push（服务端执行成功后自动落附件），普通 push 的新增/修改/删除一律拦下
+    const blockedMigrations = [
+      ...toPush
+        .filter((f) => f.filename.startsWith(`${MIGRATIONS_DIR}/`))
+        .map((f) => f.filename),
+      ...deletedLocally.filter((path) => path.startsWith(`${MIGRATIONS_DIR}/`)),
+    ];
     if (blockedMigrations.length > 0) {
       for (const name of blockedMigrations) {
         const index = toPush.findIndex((f) => f.filename === name);
@@ -132,10 +141,13 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       for (const name of blockedMigrations) logger.dim(`  ${name}`);
     };
 
-    // 被忽略的文件不参与"本地已删除"判定（可能只是新加了 ignore 规则）
-    const deletedLocally = [...baseline.keys()].filter(
-      (path) => !ig.ignores(path) && !existsSync(join(process.cwd(), path))
+    const deletionsToPush = deletedLocally.filter(
+      (path) => !path.startsWith(`${MIGRATIONS_DIR}/`)
     );
+    for (const path of deletionsToPush) {
+      conflictSet.delete(path);
+      toPush.push({ filename: path, deleted: true });
+    }
 
     debug('Push diff', {
       local: localPaths.length,
@@ -151,10 +163,6 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       }
       spinner.succeed(t('push.noChanges'));
       warnBlockedMigrations();
-      if (deletedLocally.length > 0) {
-        logger.warn(t('push.deletedHeader'));
-        for (const name of deletedLocally) logger.dim(`  ${name}`);
-      }
       return;
     }
 
@@ -176,7 +184,9 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
     const list = ((await querySessionAttachments({ sessionId, withContent: false })) ?? []).filter(
       (f) => !f.name || !ig.ignores(f.name)
     );
-    const pushedContent = new Map(toPush.map((f) => [f.filename, f.content]));
+    const pushedContent = new Map(
+      toPush.filter((f) => !f.deleted).map((f) => [f.filename, f.content])
+    );
     for (const item of list) {
       const content = pushedContent.get(item.name);
       if (content !== undefined) item.content = content;
@@ -188,29 +198,12 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       conflicts: [...conflictSet],
     });
 
-    // ── 5. 通知模型本次修改了哪些文件（失败不影响推送结果） ─
-    spinner.text = t('push.notifying');
-    let notifyError: string | undefined;
-    try {
-      const fileList = toPush.map((f) => `- ${f.filename}`).join('\n');
-      const summaryLine = options.message ? t('push.notifySummarySuffix', { message: options.message }) : '';
-      await glowConsultChat({
-        sessionId,
-        content: t('push.notifyContent', { summary: summaryLine, files: fileList }),
-        background: false,
-        attachments: [],
-      });
-    } catch (error) {
-      notifyError = (error as Error).message;
-      debug('glowConsultChat failed', notifyError);
-    }
-
     spinner.succeed(t('push.success', { count: toPush.length }));
-    for (const file of toPush) logger.dim(`  ${file.filename}`);
-    warnBlockedMigrations();
-    if (notifyError) {
-      logger.warn(t('push.notifyFailed', { error: notifyError }));
+    for (const file of toPush) {
+      const suffix = file.deleted ? t('push.deletedSuffix') : '';
+      logger.dim(`  ${file.filename}${suffix}`);
     }
+    warnBlockedMigrations();
 
     if (skippedBinary.length > 0) {
       logger.warn(t('push.skippedBinaryHeader'));
@@ -219,10 +212,6 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
     if (skippedLarge.length > 0) {
       logger.warn(t('push.skippedLargeHeader', { size: MAX_FILE_SIZE / 1024 / 1024 }));
       for (const name of skippedLarge) logger.dim(`  ${name}`);
-    }
-    if (deletedLocally.length > 0) {
-      logger.warn(t('push.deletedHeader'));
-      for (const name of deletedLocally) logger.dim(`  ${name}`);
     }
   } catch (error) {
     spinner.fail(t('push.failed'));

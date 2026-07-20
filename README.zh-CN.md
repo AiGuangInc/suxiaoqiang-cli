@@ -55,11 +55,11 @@ sxq deploy                  # 确认后轮询直到发布完成
 | `sxq login [-y] [--token <token>]` | 浏览器授权登录；也可用 `--token` 直接以已有 token 登录（会先校验有效性）。 |
 | `sxq link <sessionId> [-y]` | 关联当前目录到项目，会校验 session 归属于当前账号。 |
 | `sxq pull` | 拉取远端文件。首次全量，之后增量并做三方合并，冲突写入 git 风格 `<<<<<<<` 标记。 |
-| `sxq push [-m <msg>]` | 推送本地改动。推送前先拉取远端变更，有冲突则中断。 |
+| `sxq push [-m <msg>]` | 推送本地新增、修改和删除并生成快照，`-m` 作为快照备注。推送前先拉取远端变更，有冲突则中断。 |
 | `sxq publish` | debug 发布（预览重编译），轮询等待编译完成并输出预览地址。 |
 | `sxq deploy [-y] [-m <msg>] [--region CN\|INTL]` | 正式上线待发布版本并轮询至完成。无待发布版本时以最新已发布版本重新发布。 |
 | `sxq deploy --status` | 只查看待上线/已发布版本和访问地址，不触发上线。 |
-| `sxq db push` | 执行 `supabase/migrations/` 下新增的数据库迁移。 |
+| `sxq db push [-m <msg>]` | 执行 `supabase/migrations/` 下新增的数据库迁移，`-m` 用于传递迁移备注。 |
 | `sxq config set\|get\|unset\|list` | 管理配置。支持项：`host`、`lang`（`zh` / `en`）。 |
 | `sxq upgrade` | 从 npm 升级 CLI 到最新版本。 |
 
@@ -79,10 +79,10 @@ sxq deploy                  # 确认后轮询直到发布完成
 在 `supabase/migrations/` 下创建迁移文件，命名必须为 `<数字>_<描述>.sql`（首个下划线前须全为数字，数字建议用 `yyyyMMddHHmmss`，如 `20260709120000_create_users.sql`；不符合的文件会被忽略不执行，与 Supabase CLI 行为一致），然后执行：
 
 ```bash
-sxq db push
+sxq db push -m "新增用户资料表"
 ```
 
-它会先拉取远端，找出远端还没有的新迁移，按时间戳顺序逐个执行——遇到失败立即停止并打印错误。迁移执行成功后服务端会自动把文件保存为项目附件，所以**不要用 `sxq push` 推送迁移文件**（CLI 会直接拦下）。
+它会先拉取远端，找出远端还没有的新迁移，按时间戳顺序逐个执行——遇到失败立即停止并打印错误。每个成功迁移都会由服务端自动保存为项目附件，所以**不要用 `sxq push` 推送迁移文件**（CLI 会直接拦下）。
 
 ## 说明
 

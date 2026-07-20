@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '../../lib/logger.js';
 import { getProjectConfig } from '../../lib/config.js';
-import { glowConsultChat, supabaseExecuteMigration } from '../../lib/api.js';
+import { supabaseExecuteMigration } from '../../lib/api.js';
 import { loadManifest, flattenTree } from '../../lib/manifest.js';
 import { runPull } from '../pull.js';
 import { debug, isDebug } from '../../lib/debug.js';
@@ -14,7 +14,11 @@ export const MIGRATIONS_DIR = 'supabase/migrations';
 /** 强制：<数字>_<描述>.sql（首个下划线前必须全是数字）；数字建议用 yyyyMMddHHmmss 保证执行顺序 */
 const MIGRATION_NAME_RE = /^\d+_.+\.sql$/;
 
-export async function dbPushCommand(): Promise<void> {
+export interface DbPushOptions {
+  message?: string;
+}
+
+export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> {
   const config = await getProjectConfig();
   if (!config) {
     logger.error(t('common.notLinked'));
@@ -87,31 +91,12 @@ export async function dbPushCommand(): Promise<void> {
       executed++;
     }
 
-    // ── 5. 执行成功后服务端已写入附件，再拉一次同步清单 ─────
+    // ── 5. 服务端已写入迁移附件，再拉一次同步清单 ──────────
     spinner.text = t('db.syncing');
     await runPull(sessionId, spinner);
 
-    // ── 6. 通知模型本次执行了哪些迁移（失败不影响迁移结果） ──
-    spinner.text = t('push.notifying');
-    let notifyError: string | undefined;
-    try {
-      const fileList = newMigrations.map((name) => `- ${MIGRATIONS_DIR}/${name}`).join('\n');
-      await glowConsultChat({
-        sessionId,
-        content: t('db.notifyContent', { files: fileList }),
-        background: false,
-        attachments: [],
-      });
-    } catch (error) {
-      notifyError = (error as Error).message;
-      debug('glowConsultChat failed', notifyError);
-    }
-
     spinner.succeed(t('db.success', { count: executed }));
     for (const name of newMigrations) logger.dim(`  ${MIGRATIONS_DIR}/${name}`);
-    if (notifyError) {
-      logger.warn(t('push.notifyFailed', { error: notifyError }));
-    }
   } catch (error) {
     spinner.fail(t('db.failed'));
     logger.error((error as Error).message);

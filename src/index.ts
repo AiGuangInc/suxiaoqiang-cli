@@ -160,8 +160,9 @@ const db = program
 
 db.command('push')
   .description(t('cmd.dbPush'))
-  .action(async () => {
-    await dbPushCommand();
+  .option('-m, --message <message>', t('cmd.dbPushMessage'))
+  .action(async (options: { message?: string }) => {
+    await dbPushCommand(options);
   });
 
 // ─── 解析 ─────────────────────────────────────────────────

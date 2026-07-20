@@ -62,10 +62,13 @@ export interface QueryAttachmentParams {
 /** batchManualModify 中的单个文件 */
 export interface ManualModifyFile {
   filename: string;
-  content: string;
+  /** 新增/修改时传文本内容；删除时可省略 */
+  content?: string;
+  /** 为 true 时删除远端附件 */
+  deleted?: boolean;
 }
 
-/** batchManualModify 请求参数（批量保存附件） */
+/** batchManualModify 请求参数（批量保存/删除附件） */
 export interface BatchManualModifyParams {
   sessionId: string;
   withSnapshot: boolean;

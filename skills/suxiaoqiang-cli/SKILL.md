@@ -39,7 +39,7 @@ sxq deploy --status         # read-only: pending/published versions + live URL
 
 ## Command details & flags
 
-- `sxq push [-m <message>]` — pushes modified/new text files. Respects `.gitignore` plus
+- `sxq push [-m <message>]` — pushes added, modified, and deleted text files. Respects `.gitignore` plus
   built-in ignores (`node_modules`, `dist`, `.git`, binaries >5MB are skipped). If it aborts
   with conflict markers (`<<<<<<< local`), resolve the markers in the listed files, then push again.
 - `sxq publish [--message-id <id>]` — asynchronous; the CLI polls up to 10 min. Success prints

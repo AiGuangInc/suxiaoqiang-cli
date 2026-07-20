@@ -55,11 +55,11 @@ sxq deploy                  # asks for confirmation, then polls until live
 | `sxq login [-y] [--token <token>]` | Log in via browser authorization, or directly with an existing token (validated first). |
 | `sxq link <sessionId> [-y]` | Link the current directory to a project. Verifies the session belongs to your account. |
 | `sxq pull` | Pull remote files. Incremental after the first pull, with three-way merge; conflicts get git-style `<<<<<<<` markers. |
-| `sxq push [-m <msg>]` | Push local changes. Pulls first and aborts on conflicts. |
+| `sxq push [-m <msg>]` | Push local additions, modifications, and deletions, then create a snapshot using the optional note. Pulls first and aborts on conflicts. |
 | `sxq publish` | Debug publish (preview recompile); polls until the build finishes and prints the preview URL. |
 | `sxq deploy [-y] [-m <msg>] [--region CN\|INTL]` | Release the pending version and poll until live. With no pending version, republishes the latest release. |
 | `sxq deploy --status` | Show pending / published versions and the live URL without releasing. |
-| `sxq db push` | Execute new database migrations under `supabase/migrations/`. |
+| `sxq db push [-m <msg>]` | Execute new database migrations under `supabase/migrations/`; `-m` supplies the migration note. |
 | `sxq config set\|get\|unset\|list` | Manage config. Keys: `host`, `lang` (`zh` / `en`). |
 | `sxq upgrade` | Upgrade the CLI to the latest version from npm. |
 
@@ -79,10 +79,10 @@ The plugin teaches Claude how to use the CLI — the CLI itself still needs to b
 Create a migration file under `supabase/migrations/` named `<digits>_<memo>.sql` — everything before the first underscore must be digits (a `yyyyMMddHHmmss` timestamp is recommended, e.g. `20260709120000_create_users.sql`); files not matching this pattern are skipped, same as the Supabase CLI — then:
 
 ```bash
-sxq db push
+sxq db push -m "add user profile tables"
 ```
 
-It pulls first, finds migrations that don't exist remotely yet, and executes them one by one in timestamp order — stopping at the first failure and printing the error. After a migration succeeds the server stores the file as a project attachment automatically, so **don't push migration files with `sxq push`** (the CLI blocks them).
+It pulls first, finds migrations that don't exist remotely yet, and executes them one by one in timestamp order — stopping at the first failure and printing the error. The server stores each successful migration as a project attachment automatically, so **don't push migration files with `sxq push`** (the CLI blocks them).
 
 ## Notes
 

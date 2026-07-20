@@ -1,6 +1,6 @@
 {
   "name": "suxiaoqiang-cli",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "superun 应用管理 cli",
   "type": "module",
   "bin": {
