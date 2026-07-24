@@ -15,6 +15,17 @@ import type { ManualModifyFile } from '../types/index.js';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
+/**
+ * 服务端托管的受保护目录。这些目录下的新增/修改/删除都会被服务端以
+ * `agent.attachment.protected_path_not_modifiable` 拒绝，故在客户端提前拦下，
+ * 避免整批 push 因其中一个受保护文件而失败。
+ */
+export const PROTECTED_DIRS = ['internal', 'memory', '.superun', '.shared'];
+
+function isProtectedPath(path: string): boolean {
+  return PROTECTED_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
+}
+
 export interface PushOptions {
   message?: string;
 }
@@ -141,8 +152,13 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       for (const name of blockedMigrations) logger.dim(`  ${name}`);
     };
 
+    // 受保护目录由服务端托管，普通 push 的新增/修改/删除都会被服务端拒绝，直接静默过滤
+    for (let i = toPush.length - 1; i >= 0; i--) {
+      if (isProtectedPath(toPush[i].filename)) toPush.splice(i, 1);
+    }
+
     const deletionsToPush = deletedLocally.filter(
-      (path) => !path.startsWith(`${MIGRATIONS_DIR}/`)
+      (path) => !path.startsWith(`${MIGRATIONS_DIR}/`) && !isProtectedPath(path)
     );
     for (const path of deletionsToPush) {
       conflictSet.delete(path);
