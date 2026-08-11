@@ -120,10 +120,13 @@ export async function pollCliToken(uuid: string): Promise<string | null> {
   return json.data;
 }
 
-/** 检查当前账号是否可以下载指定会话的代码 */
-export async function canDownloadCode(params: CanDownloadCodeParams): Promise<boolean> {
+/**
+ * 检查当前账号是否可以同步指定会话的代码（owner 与 editor 协作者均可）。
+ * 服务端另有 canDownloadCode，那是付费下载 zip 的 owner-only 口径，CLI 不用。
+ */
+export async function canSyncCode(params: CanDownloadCodeParams): Promise<boolean> {
   const response = await request<boolean>(
-    '/api/uxa-center/agent/AgentQuery/canDownloadCode',
+    '/api/uxa-center/agent/AgentQuery/canSyncCode',
     params as unknown as Record<string, unknown>
   );
   return response.data;

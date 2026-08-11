@@ -1,6 +1,6 @@
 import ora from 'ora';
 import { setProjectConfig, isProjectLinked } from '../lib/config.js';
-import { canDownloadCode, pageQuerySessionByLastId } from '../lib/api.js';
+import { canSyncCode, pageQuerySessionByLastId } from '../lib/api.js';
 import { logger } from '../lib/logger.js';
 import { confirm } from '../lib/prompt.js';
 import { debug, isDebug } from '../lib/debug.js';
@@ -25,18 +25,19 @@ export async function linkCommand(sessionId: string, options: LinkOptions = {}):
     }
   }
 
-  const spinner = ora(t('link.checkingDownloadPermission')).start();
+  const spinner = ora(t('link.checkingSyncPermission')).start();
 
   try {
-    const downloadable = await canDownloadCode({ sessionId });
-    debug('canDownloadCode', downloadable);
-    if (!downloadable) {
+    const syncable = await canSyncCode({ sessionId });
+    debug('canSyncCode', syncable);
+    if (!syncable) {
       throw new Error(t('common.codeDownloadDenied'));
     }
 
-    // 归属校验：接口按登录账号过滤，查不到说明 session 不存在或不属于当前账号
+    // 可见性校验：接口按登录账号过滤，查不到说明 session 不存在或当前账号无权访问。
+    // scopes 必传 all——不传时服务端按旧语义只返回「我创建的」，协作者的项目会查不到
     spinner.text = t('link.verifying');
-    const page = await pageQuerySessionByLastId({ keyword: sessionId, pageSize: 1 });
+    const page = await pageQuerySessionByLastId({ keyword: sessionId, pageSize: 1, scopes: ['all'] });
     debug('pageQuerySessionByLastId', page);
     const session = page.data?.find((s) => s.sessionId === sessionId);
     if (!session) {

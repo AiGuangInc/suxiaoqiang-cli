@@ -11,7 +11,7 @@ export interface ApiResponse<T = unknown> {
   statusCode?: string;
 }
 
-/** canDownloadCode 请求参数 */
+/** canSyncCode / canDownloadCode 请求参数 */
 export interface CanDownloadCodeParams {
   sessionId: string;
   accId?: number;
@@ -232,6 +232,8 @@ export interface SupabaseMigrationResult {
 export interface PageQuerySessionParams {
   pageSize: number;
   keyword?: string;
+  /** 可见范围：mine(我创建的个人项目) / team(我创建的团队项目) / shared(别人分享给我的) / all；不传等价 mine+team */
+  scopes?: string[];
   idLT?: number;
   modes?: string[];
   workspaceId?: string;
