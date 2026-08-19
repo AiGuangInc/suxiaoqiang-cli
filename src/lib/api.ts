@@ -2,7 +2,7 @@ import { getApiBase, getToken, getServiceChain, getTsid } from './config.js';
 import { logger } from './logger.js';
 import { debug, isDebug } from './debug.js';
 import { t } from './i18n.js';
-import type { ApiResponse, BatchManualModifyParams, CanDownloadCodeParams, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachment, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
+import type { ApiResponse, BatchManualModifyParams, BatchManualModifySyncResult, CanDownloadCodeParams, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachmentsSyncResult, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
 
 /** 解析 JSON 响应；网关/登录页拦截时服务端会返回 HTML，给出可操作的报错而非 JSON 解析异常 */
 async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
@@ -77,6 +77,9 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     if (json.code === 1000011) {
       throw new Error(t('api.tokenExpired', { detail: message ? ` (${message})` : '' }));
     }
+    if (json.code === 600000024) {
+      throw new Error(t('api.snapshotChanged'));
+    }
     throw new Error(message || t('api.requestFailed', { code: json.code }));
   }
 
@@ -132,12 +135,12 @@ export async function canSyncCode(params: CanDownloadCodeParams): Promise<boolea
   return response.data;
 }
 
-/** 查询 Session 附件（排除内部和编译产物） */
-export async function querySessionAttachments(
+/** 查询 Session 同步附件及其基准快照（排除内部和编译产物） */
+export async function querySessionAttachmentsForSync(
   params: QuerySessionAttachmentsParams
-): Promise<SessionAttachment[]> {
-  const response = await request<SessionAttachment[]>(
-    '/api/uxa-center/agent/AgentQuery/querySessionAttachmentsExcludeInternalAndCompiled',
+): Promise<SessionAttachmentsSyncResult> {
+  const response = await request<SessionAttachmentsSyncResult>(
+    '/api/uxa-center/agent/AgentQuery/querySessionAttachmentsForSync',
     params as unknown as Record<string, unknown>
   );
   return response.data;
@@ -161,10 +164,12 @@ export async function glowConsultChat(params: GlowConsultChatParams): Promise<Gl
   return response.data;
 }
 
-/** 批量保存/删除附件（push） */
-export async function batchManualModify(params: BatchManualModifyParams): Promise<boolean> {
-  const response = await request<boolean>(
-    '/api/uxa-center/agent/AgentCommand/batchManualModify',
+/** 批量保存/删除附件（push），并返回本次提交生成的快照 ID */
+export async function batchManualModifyForSync(
+  params: BatchManualModifyParams
+): Promise<BatchManualModifySyncResult> {
+  const response = await request<BatchManualModifySyncResult>(
+    '/api/uxa-center/agent/AgentCommand/batchManualModifyForSync',
     params as unknown as Record<string, unknown>
   );
   return response.data;

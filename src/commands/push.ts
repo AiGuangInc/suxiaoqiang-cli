@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '../lib/logger.js';
 import { getProjectConfig } from '../lib/config.js';
-import { batchManualModify, querySessionAttachments } from '../lib/api.js';
+import { batchManualModifyForSync, querySessionAttachmentsForSync } from '../lib/api.js';
 import { buildAttachmentTree, flattenTree, hashContent, loadManifest, saveManifest } from '../lib/manifest.js';
 import { runPull } from './pull.js';
 import { MIGRATIONS_DIR } from './db/push.js';
@@ -184,20 +184,22 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
 
     // ── 3. 无冲突，批量推送 ─────────────────────────────
     spinner.text = t('push.pushing', { count: toPush.length });
-    const ok = await batchManualModify({
+    const modifyResult = await batchManualModifyForSync({
       sessionId,
       withSnapshot: true,
+      preSnapshotId: pullResult.snapshotId ?? undefined,
       summary: options.message || t('push.defaultSummary', { count: toPush.length }),
       files: toPush,
     });
-    if (!ok) {
-      throw new Error(t('common.serverFalse'));
+    if (!modifyResult.snapshotId) {
+      throw new Error(t('push.snapshotMissing'));
     }
 
     // ── 4. 推送成功，回查新 rowKey 并更新清单 ────────────
     spinner.text = t('push.updatingManifest');
     // 清单与同步范围保持一致：忽略的远端文件不进清单
-    const list = ((await querySessionAttachments({ sessionId, withContent: false })) ?? []).filter(
+    const refreshResult = await querySessionAttachmentsForSync({ sessionId, withContent: false });
+    const list = (refreshResult.attachments ?? []).filter(
       (f) => !f.name || !ig.ignores(f.name)
     );
     const pushedContent = new Map(
@@ -210,6 +212,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
     await saveManifest({
       sessionId,
       pulledAt: new Date().toISOString(),
+      snapshotId: modifyResult.snapshotId,
       tree: buildAttachmentTree(list, baseline),
       conflicts: [...conflictSet],
     });
