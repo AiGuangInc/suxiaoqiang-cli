@@ -5,6 +5,9 @@ import {
   getServiceChain,
   setServiceChain,
   deleteServiceChain,
+  getPrivateToken,
+  setPrivateToken,
+  deletePrivateToken,
   getTsid,
   setTsid,
   deleteTsid,
@@ -50,6 +53,13 @@ const entries: Record<string, ConfigEntry> = {
     set: setServiceChain,
     unset: deleteServiceChain,
     visible: false,
+  },
+  'private-token': {
+    get: getPrivateToken,
+    set: setPrivateToken,
+    unset: deletePrivateToken,
+    visible: false,
+    secret: true,
   },
   tsid: {
     get: getTsid,

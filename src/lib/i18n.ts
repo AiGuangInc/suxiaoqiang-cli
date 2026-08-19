@@ -18,6 +18,8 @@ const zh = {
   'api.requestFailed': '请求失败 (code: {code})',
   'api.nonJson': '服务端返回了非 JSON 内容，可能被网关或登录页拦截，请检查 host 配置与网络环境（--debug 可查看原始响应）',
   'api.snapshotChanged': '远端项目已在本次拉取后发生变化，为避免覆盖他人的修改，本次 push 已拒绝；请重新执行 sxq push 拉取并合并最新内容',
+  'api.privateTokenRequired': '国内预发需要 PRIVATE-TOKEN，请设置 PRIVATE_TOKEN 环境变量或执行 sxq config set private-token <PAT>',
+  'api.privateTokenInvalid': 'PRIVATE_TOKEN 可能无效或已过期，请更新 PAT 后重试',
 
   // ── prompt ────────────────────────────────────────────
   'prompt.nonInteractive': '当前为非交互环境，无法完成确认: {message}',
@@ -203,6 +205,8 @@ const en: Record<MessageKey, string> = {
   'api.requestFailed': 'Request failed (code: {code})',
   'api.nonJson': 'The server returned non-JSON content, possibly intercepted by a gateway or login page. Check your host config and network (--debug shows the raw response)',
   'api.snapshotChanged': 'The remote project changed after this pull. Push was rejected to avoid overwriting another edit; run sxq push again to pull and merge the latest content',
+  'api.privateTokenRequired': 'CN pre requires PRIVATE-TOKEN. Set the PRIVATE_TOKEN environment variable or run sxq config set private-token <PAT>',
+  'api.privateTokenInvalid': 'PRIVATE_TOKEN may be invalid or expired. Update the PAT and try again',
 
   'prompt.nonInteractive': 'Non-interactive environment, cannot confirm: {message}',
 

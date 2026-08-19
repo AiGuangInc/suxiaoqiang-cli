@@ -1,4 +1,4 @@
-import { getApiBase, getToken, getServiceChain, getTsid } from './config.js';
+import { getApiBase, getToken, getServiceChain, getTsid, getPrivateToken } from './config.js';
 import { logger } from './logger.js';
 import { debug, isDebug } from './debug.js';
 import { t } from './i18n.js';
@@ -25,6 +25,7 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
 
   const apiBase = getApiBase();
   const url = `${apiBase}${path}`;
+  const isCnPre = new URL(apiBase).hostname === 'superun.pre.qima-inc.com';
 
   // 注意：服务端只认连字符的 access-token，下划线的 access_token 会被鉴权拒绝
   const headers: Record<string, string> = {
@@ -43,18 +44,34 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     headers['Cookie'] = `TSID=${tsid}`;
   }
 
+  // 国内预发代理需要个人 PAT。只发往 cn-pre，避免凭据泄露到生产或海外环境。
+  const privateToken = isCnPre ? getPrivateToken() : undefined;
+  if (privateToken) {
+    headers['PRIVATE-TOKEN'] = privateToken;
+  }
+
   debug('Request URL', url);
-  debug('Request Headers', { ...headers, 'access-token': '***', ...(tsid ? { Cookie: 'TSID=***' } : {}) });
+  debug('Request Headers', {
+    ...headers,
+    'access-token': '***',
+    ...(tsid ? { Cookie: 'TSID=***' } : {}),
+    ...(privateToken ? { 'PRIVATE-TOKEN': '***' } : {}),
+  });
   debug('Request Body', body);
 
   const res = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
+    redirect: 'manual',
   });
 
   debug('Response Status', `${res.status} ${res.statusText}`);
   debug('Response Headers', Object.fromEntries(res.headers.entries()));
+
+  if (res.status >= 300 && res.status < 400 && isCnPre) {
+    throw new Error(t(privateToken ? 'api.privateTokenInvalid' : 'api.privateTokenRequired'));
+  }
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '');

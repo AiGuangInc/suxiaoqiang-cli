@@ -302,6 +302,8 @@ export interface GlobalConfig {
   token?: string;
   apiBase: string;
   serviceChain?: string;
+  /** 国内预发代理 PAT；优先读取 PRIVATE_TOKEN 环境变量 */
+  privateToken?: string;
   /** 预发环境网关 cookie，设置后随请求以 Cookie: TSID=xxx 携带 */
   tsid?: string;
   /** 界面语言 zh/en，未设置时按环境变量自动检测 */

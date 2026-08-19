@@ -55,6 +55,19 @@ export function deleteServiceChain(): void {
   globalConf.delete('serviceChain');
 }
 
+/** 国内预发代理 PAT。环境变量优先，避免必须把敏感值落盘。 */
+export function getPrivateToken(): string | undefined {
+  return process.env.PRIVATE_TOKEN?.trim() || globalConf.get('privateToken');
+}
+
+export function setPrivateToken(value: string): void {
+  globalConf.set('privateToken', value.trim());
+}
+
+export function deletePrivateToken(): void {
+  globalConf.delete('privateToken');
+}
+
 export function getLang(): string | undefined {
   return globalConf.get('lang');
 }
