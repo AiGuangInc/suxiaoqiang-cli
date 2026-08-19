@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { getProjectConfig } from '../lib/config.js';
-import { canSyncCode, querySessionAttachments, queryAttachment } from '../lib/api.js';
+import { canSyncCode, querySessionAttachmentsForSync, queryAttachment } from '../lib/api.js';
 import { buildAttachmentTree, flattenTree, loadManifest, saveManifest, getManifestPath, hashContent } from '../lib/manifest.js';
 import { threeWayMerge } from '../lib/merge.js';
 import { logger } from '../lib/logger.js';
@@ -37,16 +37,25 @@ async function readLocal(name: string): Promise<string | null> {
 /** pull 执行结果，push 前置拉取用于判断是否可继续 */
 export interface PullResult {
   conflicted: string[];
+  snapshotId: string | null;
 }
 
 /** 全量拉取：查询时携带内容，写入全部文件（.gitignore 命中的不写盘、不进清单） */
 async function fullPull(sessionId: string, spinner: Ora, ig: SyncIgnore): Promise<PullResult> {
-  const attachments = await querySessionAttachments({ sessionId, withContent: true });
+  const result = await querySessionAttachmentsForSync({ sessionId, withContent: true });
+  const attachments = result.attachments ?? [];
   debug('Attachments received', attachments?.length ?? 0);
 
-  if (!attachments || attachments.length === 0) {
+  if (attachments.length === 0) {
+    await saveManifest({
+      sessionId,
+      pulledAt: new Date().toISOString(),
+      snapshotId: result.snapshotId,
+      tree: {},
+      conflicts: [],
+    });
     spinner.info(t('pull.noRemoteFiles'));
-    return { conflicted: [] };
+    return { conflicted: [], snapshotId: result.snapshotId };
   }
 
   spinner.text = t('pull.writing', { count: attachments.length });
@@ -72,13 +81,14 @@ async function fullPull(sessionId: string, spinner: Ora, ig: SyncIgnore): Promis
   await saveManifest({
     sessionId,
     pulledAt: new Date().toISOString(),
+    snapshotId: result.snapshotId,
     tree: buildAttachmentTree(synced),
     conflicts: [],
   });
   debug('Manifest saved', getManifestPath());
 
   spinner.succeed(t('pull.fullDone', { written, skipped }));
-  return { conflicted: [] };
+  return { conflicted: [], snapshotId: result.snapshotId };
 }
 
 /**
@@ -90,7 +100,8 @@ async function incrementalPull(sessionId: string, spinner: Ora, ig: SyncIgnore):
   if (!manifest) throw new Error(t('pull.manifestMissing'));
 
   // .gitignore 命中的远端文件不参与同步（不写盘、不进清单、不报"远程已删除"）
-  const list = ((await querySessionAttachments({ sessionId, withContent: false })) ?? []).filter(
+  const result = await querySessionAttachmentsForSync({ sessionId, withContent: false });
+  const list = (result.attachments ?? []).filter(
     (f) => !f.name || !ig.ignores(f.name)
   );
   debug('Attachments received', list.length);
@@ -180,6 +191,7 @@ async function incrementalPull(sessionId: string, spinner: Ora, ig: SyncIgnore):
   await saveManifest({
     sessionId,
     pulledAt: new Date().toISOString(),
+    snapshotId: result.snapshotId,
     tree: buildAttachmentTree(list, baseline),
     conflicts: [...conflictSet],
   });
@@ -210,7 +222,7 @@ async function incrementalPull(sessionId: string, spinner: Ora, ig: SyncIgnore):
     for (const path of removed) logger.dim(`  ${path}`);
   }
 
-  return { conflicted };
+  return { conflicted, snapshotId: result.snapshotId };
 }
 
 /** 执行一次拉取（自动判断全量/增量），供 pull 命令和 push 前置检查复用 */

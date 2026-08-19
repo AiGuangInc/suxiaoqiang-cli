@@ -17,6 +17,9 @@ const zh = {
   'api.tokenExpired': '登录凭证无效或已过期，请重新执行 sxq login{detail}',
   'api.requestFailed': '请求失败 (code: {code})',
   'api.nonJson': '服务端返回了非 JSON 内容，可能被网关或登录页拦截，请检查 host 配置与网络环境（--debug 可查看原始响应）',
+  'api.snapshotChanged': '远端项目已在本次拉取后发生变化，为避免覆盖他人的修改，本次 push 已拒绝；请重新执行 sxq push 拉取并合并最新内容',
+  'api.privateTokenRequired': '国内预发需要 PRIVATE-TOKEN，请设置 PRIVATE_TOKEN 环境变量或执行 sxq config set private-token <PAT>',
+  'api.privateTokenInvalid': 'PRIVATE_TOKEN 可能无效或已过期，请更新 PAT 后重试',
 
   // ── prompt ────────────────────────────────────────────
   'prompt.nonInteractive': '当前为非交互环境，无法完成确认: {message}',
@@ -80,6 +83,7 @@ const zh = {
   'push.defaultSummary': 'sxq push: {count} 个文件',
   'push.updatingManifest': '正在更新本地清单...',
   'push.success': '推送完成: {count} 个文件',
+  'push.snapshotMissing': '服务端未返回本次提交的 snapshotId，无法安全更新本地同步基线',
   'push.deletedSuffix': '（已删除）',
   'push.migrationsBlockedHeader': 'supabase/migrations 下的改动不能通过 push 保存，已跳过（新增迁移请用 sxq db push 执行）:',
   'push.skippedBinaryHeader': '以下二进制文件已跳过（接口仅支持文本内容）:',
@@ -200,6 +204,9 @@ const en: Record<MessageKey, string> = {
   'api.tokenExpired': 'Login credential is invalid or expired. Run sxq login again{detail}',
   'api.requestFailed': 'Request failed (code: {code})',
   'api.nonJson': 'The server returned non-JSON content, possibly intercepted by a gateway or login page. Check your host config and network (--debug shows the raw response)',
+  'api.snapshotChanged': 'The remote project changed after this pull. Push was rejected to avoid overwriting another edit; run sxq push again to pull and merge the latest content',
+  'api.privateTokenRequired': 'CN pre requires PRIVATE-TOKEN. Set the PRIVATE_TOKEN environment variable or run sxq config set private-token <PAT>',
+  'api.privateTokenInvalid': 'PRIVATE_TOKEN may be invalid or expired. Update the PAT and try again',
 
   'prompt.nonInteractive': 'Non-interactive environment, cannot confirm: {message}',
 
@@ -258,6 +265,7 @@ const en: Record<MessageKey, string> = {
   'push.defaultSummary': 'sxq push: {count} files',
   'push.updatingManifest': 'Updating local manifest...',
   'push.success': 'Push complete: {count} files',
+  'push.snapshotMissing': 'The server did not return the snapshotId created by this push, so the local sync baseline cannot be updated safely',
   'push.deletedSuffix': ' (deleted)',
   'push.migrationsBlockedHeader': 'Changes under supabase/migrations cannot be saved via push and were skipped (run new migrations with sxq db push):',
   'push.skippedBinaryHeader': 'Skipped binary files (the API only supports text content):',

@@ -1,8 +1,8 @@
-import { getApiBase, getToken, getServiceChain, getTsid } from './config.js';
+import { getApiBase, getToken, getServiceChain, getTsid, getPrivateToken } from './config.js';
 import { logger } from './logger.js';
 import { debug, isDebug } from './debug.js';
 import { t } from './i18n.js';
-import type { ApiResponse, BatchManualModifyParams, CanDownloadCodeParams, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachment, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
+import type { ApiResponse, BatchManualModifyParams, BatchManualModifySyncResult, CanDownloadCodeParams, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachmentsSyncResult, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
 
 /** 解析 JSON 响应；网关/登录页拦截时服务端会返回 HTML，给出可操作的报错而非 JSON 解析异常 */
 async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
@@ -25,6 +25,7 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
 
   const apiBase = getApiBase();
   const url = `${apiBase}${path}`;
+  const isCnPre = new URL(apiBase).hostname === 'superun.pre.qima-inc.com';
 
   // 注意：服务端只认连字符的 access-token，下划线的 access_token 会被鉴权拒绝
   const headers: Record<string, string> = {
@@ -43,18 +44,34 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     headers['Cookie'] = `TSID=${tsid}`;
   }
 
+  // 国内预发代理需要个人 PAT。只发往 cn-pre，避免凭据泄露到生产或海外环境。
+  const privateToken = isCnPre ? getPrivateToken() : undefined;
+  if (privateToken) {
+    headers['PRIVATE-TOKEN'] = privateToken;
+  }
+
   debug('Request URL', url);
-  debug('Request Headers', { ...headers, 'access-token': '***', ...(tsid ? { Cookie: 'TSID=***' } : {}) });
+  debug('Request Headers', {
+    ...headers,
+    'access-token': '***',
+    ...(tsid ? { Cookie: 'TSID=***' } : {}),
+    ...(privateToken ? { 'PRIVATE-TOKEN': '***' } : {}),
+  });
   debug('Request Body', body);
 
   const res = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
+    redirect: 'manual',
   });
 
   debug('Response Status', `${res.status} ${res.statusText}`);
   debug('Response Headers', Object.fromEntries(res.headers.entries()));
+
+  if (res.status >= 300 && res.status < 400 && isCnPre) {
+    throw new Error(t(privateToken ? 'api.privateTokenInvalid' : 'api.privateTokenRequired'));
+  }
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '');
@@ -76,6 +93,9 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     const message = json.message || json.msg;
     if (json.code === 1000011) {
       throw new Error(t('api.tokenExpired', { detail: message ? ` (${message})` : '' }));
+    }
+    if (json.code === 600000024) {
+      throw new Error(t('api.snapshotChanged'));
     }
     throw new Error(message || t('api.requestFailed', { code: json.code }));
   }
@@ -132,12 +152,12 @@ export async function canSyncCode(params: CanDownloadCodeParams): Promise<boolea
   return response.data;
 }
 
-/** 查询 Session 附件（排除内部和编译产物） */
-export async function querySessionAttachments(
+/** 查询 Session 同步附件及其基准快照（排除内部和编译产物） */
+export async function querySessionAttachmentsForSync(
   params: QuerySessionAttachmentsParams
-): Promise<SessionAttachment[]> {
-  const response = await request<SessionAttachment[]>(
-    '/api/uxa-center/agent/AgentQuery/querySessionAttachmentsExcludeInternalAndCompiled',
+): Promise<SessionAttachmentsSyncResult> {
+  const response = await request<SessionAttachmentsSyncResult>(
+    '/api/uxa-center/agent/AgentQuery/querySessionAttachmentsForSync',
     params as unknown as Record<string, unknown>
   );
   return response.data;
@@ -161,10 +181,12 @@ export async function glowConsultChat(params: GlowConsultChatParams): Promise<Gl
   return response.data;
 }
 
-/** 批量保存/删除附件（push） */
-export async function batchManualModify(params: BatchManualModifyParams): Promise<boolean> {
-  const response = await request<boolean>(
-    '/api/uxa-center/agent/AgentCommand/batchManualModify',
+/** 批量保存/删除附件（push），并返回本次提交生成的快照 ID */
+export async function batchManualModifyForSync(
+  params: BatchManualModifyParams
+): Promise<BatchManualModifySyncResult> {
+  const response = await request<BatchManualModifySyncResult>(
+    '/api/uxa-center/agent/AgentCommand/batchManualModifyForSync',
     params as unknown as Record<string, unknown>
   );
   return response.data;

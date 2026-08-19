@@ -31,6 +31,12 @@ export interface SessionAttachment {
   updatedAt: string;
 }
 
+/** 代码同步拉取结果。snapshotId 使用字符串，避免 JavaScript 丢失 Long 精度。 */
+export interface SessionAttachmentsSyncResult {
+  snapshotId: string | null;
+  attachments: SessionAttachment[];
+}
+
 /** querySessionAttachments 请求参数 */
 export interface QuerySessionAttachmentsParams {
   sessionId: string;
@@ -73,11 +79,18 @@ export interface BatchManualModifyParams {
   sessionId: string;
   withSnapshot: boolean;
   summary?: string;
+  /** pull 时记录的远端快照 ID；服务端用它做乐观锁校验 */
+  preSnapshotId?: string;
   files: ManualModifyFile[];
   accId?: number;
   userId?: number;
   __product?: number;
   orgId?: number;
+}
+
+/** 代码同步提交结果。 */
+export interface BatchManualModifySyncResult {
+  snapshotId: string | null;
 }
 
 /** glowConsultChat 请求参数（向会话发送消息，告知模型信息） */
@@ -204,6 +217,8 @@ export interface AttachmentTree {
 export interface AttachmentManifest {
   sessionId: string;
   pulledAt: string;
+  /** 最近一次 pull 或 push 成功后对应的远端快照 ID */
+  snapshotId?: string | null;
   tree: AttachmentTree;
   /** pull 合并时写入了冲突标记、尚未确认解决的文件；push 只对这些文件做残留标记检查 */
   conflicts?: string[];
@@ -287,6 +302,8 @@ export interface GlobalConfig {
   token?: string;
   apiBase: string;
   serviceChain?: string;
+  /** 国内预发代理 PAT；优先读取 PRIVATE_TOKEN 环境变量 */
+  privateToken?: string;
   /** 预发环境网关 cookie，设置后随请求以 Cookie: TSID=xxx 携带 */
   tsid?: string;
   /** 界面语言 zh/en，未设置时按环境变量自动检测 */
