@@ -3,7 +3,7 @@ import { loginCommand } from './commands/login.js';
 import { linkCommand } from './commands/link.js';
 import { pullCommand } from './commands/pull.js';
 import { pushCommand } from './commands/push.js';
-import { publishCommand } from './commands/publish.js';
+import { deprecatedPublishCommand, previewCommand } from './commands/publish.js';
 import { deployCommand, deployStatusCommand } from './commands/deploy.js';
 import { dbPushCommand } from './commands/db/push.js';
 import { upgradeCommand } from './commands/upgrade.js';
@@ -78,14 +78,23 @@ program
     await pushCommand(options);
   });
 
-// ─── sxq publish ─────────────────────────────────────────
+// ─── sxq preview ─────────────────────────────────────────
 
 program
-  .command('publish')
-  .description(t('cmd.publish'))
-  .option('--message-id <messageId>', t('cmd.publishMessageId'))
+  .command('preview')
+  .description(t('cmd.preview'))
+  .argument('[target]', t('cmd.previewTarget'), 'front')
+  .option('--message-id <messageId>', t('cmd.previewMessageId'))
+  .action(async (target: string, options: { messageId?: string }) => {
+    await previewCommand(target, options);
+  });
+
+program
+  .command('publish', { hidden: true })
+  .description(t('cmd.publishDeprecated'))
+  .option('--message-id <messageId>', t('cmd.previewMessageId'))
   .action(async (options: { messageId?: string }) => {
-    await publishCommand(options);
+    await deprecatedPublishCommand(options);
   });
 
 // ─── sxq deploy ──────────────────────────────────────────

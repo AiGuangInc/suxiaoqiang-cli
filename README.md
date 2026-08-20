@@ -41,8 +41,11 @@ sxq pull
 # 4. Edit locally, then push your changes back
 sxq push -m "tweak homepage copy"
 
-# 5. Trigger a preview build (debug publish) and wait for it
-sxq publish                 # prints the preview URL when done
+# 5. Update the frontend preview and wait for it
+sxq preview                 # same as sxq preview front; prints the preview URL when done
+
+# Update only the Edge Function preview when needed
+sxq preview ef
 
 # 6. Release to production
 sxq deploy                  # asks for confirmation, then polls until live
@@ -56,7 +59,8 @@ sxq deploy                  # asks for confirmation, then polls until live
 | `sxq link <sessionId> [-y]` | Link the current directory to a project. Verifies the session belongs to your account. |
 | `sxq pull` | Pull remote files. Incremental after the first pull, with three-way merge; conflicts get git-style `<<<<<<<` markers. |
 | `sxq push [-m <msg>]` | Push local additions, modifications, and deletions, then create a snapshot using the optional note. Pulls first and aborts on conflicts. |
-| `sxq publish` | Debug publish (preview recompile); polls until the build finishes and prints the preview URL. |
+| `sxq preview [front\|ef]` | Update the preview environment; defaults to `front`, while `ef` deploys Edge Functions only. |
+| `sxq publish` | Compatibility alias for `sxq preview front`. |
 | `sxq deploy [-y] [-m <msg>] [--region CN\|INTL]` | Release the pending version and poll until live. With no pending version, republishes the latest release. |
 | `sxq deploy --status` | Show pending / published versions and the live URL without releasing. |
 | `sxq db push [-m <msg>]` | Execute new database migrations under `supabase/migrations/`; `-m` supplies the migration note. |

@@ -41,8 +41,11 @@ sxq pull
 # 4. 本地修改后推送回远端
 sxq push -m "调整首页文案"
 
-# 5. 触发预览编译（debug 发布）并等待完成
-sxq publish                 # 完成后输出预览地址
+# 5. 更新前端预览并等待编译完成
+sxq preview                 # 等同于 sxq preview front，完成后输出预览地址
+
+# 按需单独更新 Edge Function 预览
+sxq preview ef
 
 # 6. 正式上线
 sxq deploy                  # 确认后轮询直到发布完成
@@ -56,7 +59,8 @@ sxq deploy                  # 确认后轮询直到发布完成
 | `sxq link <sessionId> [-y]` | 关联当前目录到项目，会校验 session 归属于当前账号。 |
 | `sxq pull` | 拉取远端文件。首次全量，之后增量并做三方合并，冲突写入 git 风格 `<<<<<<<` 标记。 |
 | `sxq push [-m <msg>]` | 推送本地新增、修改和删除并生成快照，`-m` 作为快照备注。推送前先拉取远端变更，有冲突则中断。 |
-| `sxq publish` | debug 发布（预览重编译），轮询等待编译完成并输出预览地址。 |
+| `sxq preview [front\|ef]` | 更新预览环境；默认 `front`，`ef` 单独部署 Edge Function。 |
+| `sxq publish` | `sxq preview front` 的兼容别名。 |
 | `sxq deploy [-y] [-m <msg>] [--region CN\|INTL]` | 正式上线待发布版本并轮询至完成。无待发布版本时以最新已发布版本重新发布。 |
 | `sxq deploy --status` | 只查看待上线/已发布版本和访问地址，不触发上线。 |
 | `sxq db push [-m <msg>]` | 执行 `supabase/migrations/` 下新增的数据库迁移，`-m` 用于传递迁移备注。 |

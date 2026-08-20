@@ -2,6 +2,7 @@ import ora from 'ora';
 import { logger } from '../lib/logger.js';
 import { getProjectConfig } from '../lib/config.js';
 import { publishDebug, queryPublishDebugResult } from '../lib/api.js';
+import { deployEdgeFunctionCommand } from './edge-function.js';
 import { debug, isDebug } from '../lib/debug.js';
 import { t } from '../lib/i18n.js';
 import type { PublishDebugResult } from '../types/index.js';
@@ -90,4 +91,33 @@ export async function publishCommand(options: PublishOptions = {}): Promise<void
     }
     process.exit(1);
   }
+}
+
+/** 兼容旧命令；提示迁移后继续执行 front 预览。 */
+export async function deprecatedPublishCommand(options: PublishOptions = {}): Promise<void> {
+  logger.warn(t('preview.publishDeprecated'));
+  await publishCommand(options);
+}
+
+/** 按目标更新预览环境；不传目标时默认更新前端。 */
+export async function previewCommand(
+  target: string = 'front',
+  options: PublishOptions = {}
+): Promise<void> {
+  if (target === 'front') {
+    await publishCommand(options);
+    return;
+  }
+
+  if (target === 'ef') {
+    if (options.messageId) {
+      logger.error(t('preview.messageIdFrontOnly'));
+      process.exit(1);
+    }
+    await deployEdgeFunctionCommand();
+    return;
+  }
+
+  logger.error(t('preview.invalidTarget', { target }));
+  process.exit(1);
 }

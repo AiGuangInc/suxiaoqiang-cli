@@ -151,6 +151,17 @@ export interface PublishDebugResult {
   publishUrl?: string;
 }
 
+/** deployEdgeFunction 请求参数 */
+export interface DeployEdgeFunctionParams {
+  sessionId: string;
+}
+
+/** deployEdgeFunction 响应 data */
+export interface DeployEdgeFunctionResult {
+  allSuccess: boolean;
+  errorMessages?: string;
+}
+
 /** publishNewLogV2 请求参数（正式上线）。文档里的 logId 是错的，实际字段是 encryptedId */
 export interface PublishNewLogParams {
   sessionId: string;

@@ -96,14 +96,19 @@ const zh = {
   'publish.waiting': '发布中，等待编译完成...',
   'publish.waitingSeconds': '发布中，等待编译完成... ({seconds}s)',
   'publish.timeout': '发布超时（{minutes} 分钟），最后状态: {status}',
-  'publish.noneTimeout': '未查询到发布记录（可能未触发或已过期），请重试 sxq publish',
+  'publish.noneTimeout': '未查询到发布记录（可能未触发或已过期），请重试 sxq preview',
   'publish.success': 'debug 发布完成',
   'publish.failed': '发布失败',
+
+  // ── preview ───────────────────────────────────────────
+  'preview.invalidTarget': '不支持的预览目标: {target}（仅支持 front / ef）',
+  'preview.messageIdFrontOnly': '--message-id 仅适用于 front 预览',
+  'preview.publishDeprecated': 'sxq publish 已弃用，请使用 sxq preview 代替',
 
   // ── deploy ────────────────────────────────────────────
   'deploy.querying': '正在查询待上线版本...',
   'deploy.noVersion': '没有可上线的版本',
-  'deploy.noVersionHint': '请先在 Superun 完成构建（或执行 sxq publish 预览）后再上线',
+  'deploy.noVersionHint': '请先在 Superun 完成构建（或执行 sxq preview 预览）后再上线',
   'deploy.republishHeader': '没有待上线版本，将以最新已发布版本重新发布:',
   'deploy.pendingHeader': '待上线版本:',
   'deploy.summaryLabel': '  摘要: {text}',
@@ -128,6 +133,12 @@ const zh = {
   'deploy.statusPublished': '已发布版本 ({count}):',
   'deploy.statusNoPublished': '暂无已发布版本',
   'deploy.statusFailed': '查询失败',
+
+  // ── edge function ─────────────────────────────────────
+  'edgeFunction.deploying': '正在部署 Edge Function...',
+  'edgeFunction.success': 'Edge Function 部署完成',
+  'edgeFunction.failed': 'Edge Function 部署失败',
+  'edgeFunction.serverFailed': '服务端返回 Edge Function 部署失败',
 
   // ── upgrade ───────────────────────────────────────────
   'upgrade.checking': '正在检查最新版本...',
@@ -171,8 +182,10 @@ const zh = {
   'cmd.push': '推送本地代码至远端（会先拉取远程变更，有冲突则中断）',
   'cmd.pushMessage': '本次推送的备注说明',
   'cmd.dbPushMessage': '本次数据库迁移的备注说明',
-  'cmd.publish': 'debug 发布（预览重编译），并轮询等待编译完成',
-  'cmd.publishMessageId': '指定 replyMessageId，为空走默认"最近一条已完成 AGENT 消息"',
+  'cmd.preview': '更新预览环境，可选择前端或 Edge Function',
+  'cmd.previewTarget': '预览目标: front 前端（默认）/ ef Edge Function',
+  'cmd.previewMessageId': 'front 预览使用的 replyMessageId，默认取最近一条已完成 AGENT 消息',
+  'cmd.publishDeprecated': '已弃用，请使用 sxq preview',
   'cmd.deploy': '正式上线待发布版本，并轮询等待发布完成',
   'cmd.deployMessage': '变动记录，默认沿用待上线版本已有的 changeLog',
   'cmd.deployRegion': '目标机房: CN 主站 / INTL 国际站，默认当前机房',
@@ -277,13 +290,17 @@ const en: Record<MessageKey, string> = {
   'publish.waiting': 'Publishing, waiting for compilation...',
   'publish.waitingSeconds': 'Publishing, waiting for compilation... ({seconds}s)',
   'publish.timeout': 'Publish timed out ({minutes} min), last status: {status}',
-  'publish.noneTimeout': 'No publish record found (not triggered or expired). Try sxq publish again',
+  'publish.noneTimeout': 'No publish record found (not triggered or expired). Try sxq preview again',
   'publish.success': 'Debug publish complete',
   'publish.failed': 'Publish failed',
 
+  'preview.invalidTarget': 'Unsupported preview target: {target} (supported: front / ef)',
+  'preview.messageIdFrontOnly': '--message-id is only available for front previews',
+  'preview.publishDeprecated': 'sxq publish is deprecated; use sxq preview instead',
+
   'deploy.querying': 'Querying pending release version...',
   'deploy.noVersion': 'No version available to release',
-  'deploy.noVersionHint': 'Build in Superun first (or run sxq publish to preview) before releasing',
+  'deploy.noVersionHint': 'Build in Superun first (or run sxq preview) before releasing',
   'deploy.republishHeader': 'No pending version; the latest published version will be republished:',
   'deploy.pendingHeader': 'Pending release version:',
   'deploy.summaryLabel': '  Summary: {text}',
@@ -308,6 +325,11 @@ const en: Record<MessageKey, string> = {
   'deploy.statusPublished': 'Published versions ({count}):',
   'deploy.statusNoPublished': 'No published versions yet',
   'deploy.statusFailed': 'Query failed',
+
+  'edgeFunction.deploying': 'Deploying Edge Functions...',
+  'edgeFunction.success': 'Edge Functions deployed',
+  'edgeFunction.failed': 'Edge Function deployment failed',
+  'edgeFunction.serverFailed': 'The server reported an Edge Function deployment failure',
 
   'upgrade.checking': 'Checking for the latest version...',
   'upgrade.checkFailed': 'Version check failed. Verify your network and npm registry',
@@ -347,8 +369,10 @@ const en: Record<MessageKey, string> = {
   'cmd.push': 'Push local code to remote (pulls remote changes first; aborts on conflict)',
   'cmd.pushMessage': 'Note for this push',
   'cmd.dbPushMessage': 'Note for this database migration',
-  'cmd.publish': 'Debug publish (preview recompile) and poll until compilation completes',
-  'cmd.publishMessageId': 'Specify replyMessageId; defaults to the latest completed AGENT message',
+  'cmd.preview': 'Update the preview environment for the frontend or Edge Functions',
+  'cmd.previewTarget': 'Preview target: front (default) / ef (Edge Functions)',
+  'cmd.previewMessageId': 'replyMessageId for a front preview; defaults to the latest completed AGENT message',
+  'cmd.publishDeprecated': 'Deprecated; use sxq preview instead',
   'cmd.deploy': 'Release the pending version and poll until it completes',
   'cmd.deployMessage': 'Changelog; defaults to the pending version\'s existing changelog',
   'cmd.deployRegion': 'Target region: CN (main) / INTL (international); defaults to the current region',

@@ -2,7 +2,7 @@ import { getApiBase, getToken, getServiceChain, getTsid, getPrivateToken } from 
 import { logger } from './logger.js';
 import { debug, isDebug } from './debug.js';
 import { t } from './i18n.js';
-import type { ApiResponse, BatchManualModifyParams, BatchManualModifySyncResult, CanDownloadCodeParams, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachmentsSyncResult, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
+import type { ApiResponse, BatchManualModifyParams, BatchManualModifySyncResult, CanDownloadCodeParams, DeployEdgeFunctionParams, DeployEdgeFunctionResult, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachmentsSyncResult, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
 
 /** 解析 JSON 响应；网关/登录页拦截时服务端会返回 HTML，给出可操作的报错而非 JSON 解析异常 */
 async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
@@ -207,6 +207,17 @@ export async function queryPublishDebugResult(
 ): Promise<PublishDebugResult> {
   const response = await request<PublishDebugResult>(
     '/api/uxa-center/agent/AgentQuery/queryPublishDebugResult',
+    params as unknown as Record<string, unknown>
+  );
+  return response.data;
+}
+
+/** 部署当前项目主线最新版本中的全部 Edge Function */
+export async function deployEdgeFunction(
+  params: DeployEdgeFunctionParams
+): Promise<DeployEdgeFunctionResult> {
+  const response = await request<DeployEdgeFunctionResult>(
+    '/api/uxa-center/agent/AgentCommand/deployEdgeFunction',
     params as unknown as Record<string, unknown>
   );
   return response.data;

@@ -32,7 +32,8 @@ sxq link <sessionId> -y     # bind current dir to a project (verifies ownership;
 sxq pull                    # pull remote files (incremental, three-way merge)
 # ... edit files locally ...
 sxq push -m "<summary>"     # push local changes (pulls first; aborts on conflict)
-sxq publish                 # debug publish (preview build); polls until done, prints preview URL
+sxq preview                 # update the frontend preview; equivalent to sxq preview front
+sxq preview ef              # update only the Edge Function preview
 sxq deploy -y -m "<log>"    # release to production; polls until live, prints live URL
 sxq deploy --status         # read-only: pending/published versions + live URL
 ```
@@ -42,8 +43,11 @@ sxq deploy --status         # read-only: pending/published versions + live URL
 - `sxq push [-m <message>]` — pushes added, modified, and deleted text files. Respects `.gitignore` plus
   built-in ignores (`node_modules`, `dist`, `.git`, binaries >5MB are skipped). If it aborts
   with conflict markers (`<<<<<<< local`), resolve the markers in the listed files, then push again.
-- `sxq publish [--message-id <id>]` — asynchronous; the CLI polls up to 10 min. Success prints
-  a preview URL. If it fails with an error message, report it to the user verbatim.
+- `sxq preview [front|ef] [--message-id <id>]` — updates the preview environment. `front` is
+  the default and polls the preview build for up to 10 min; `ef` deploys all Edge Functions
+  from the linked project's latest completed mainline version. `--message-id` only applies to
+  `front`. The legacy `sxq publish` command remains available for compatibility, prints a
+  deprecation warning, and then runs the same behavior as `sxq preview front`.
 - `sxq deploy` — **releases to production and may incur cloud service fees.** `-y` skips the
   confirmation and acknowledges the fee. Do NOT pass `-y` unless the user explicitly asked to
   deploy/release. With no pending version it republishes the latest released version
@@ -86,7 +90,7 @@ Full flow:
 
 1. Run `sxq pull` before editing if the project may have changed remotely (e.g. the user also
    edits on the Superun web UI).
-2. After pushing code changes the user wants to see: `sxq publish` for a preview; only
+2. After pushing code changes the user wants to see: `sxq preview` for a preview; only
    `sxq deploy` when they ask to go live.
 3. `deploy --status` is read-only and always safe for checking state.
 4. Exit code 0 = success. Non-zero exit prints an actionable error message on stderr —
