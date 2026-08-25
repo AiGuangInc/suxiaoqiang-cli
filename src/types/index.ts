@@ -252,6 +252,10 @@ export interface SupabaseMigrationParams {
 export interface SupabaseMigrationResult {
   success: boolean;
   errorMsg?: string;
+  /** 数据库返回的具体错误原因 */
+  errorDetail?: string;
+  /** 数据库返回的修复建议 */
+  errorHint?: string;
 }
 
 /** pageQuerySessionByLastId 请求参数（keyword 精确匹配 sessionId 或模糊匹配项目名） */
