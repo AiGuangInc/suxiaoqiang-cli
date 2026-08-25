@@ -85,6 +85,15 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
       if (!result?.success) {
         spinner.fail(t('db.execFailed', { name: fileName }));
         if (result?.errorMsg) logger.error(result.errorMsg);
+        if (result?.errorDetail && result.errorDetail !== result.errorMsg) {
+          logger.error(t('db.errorDetail', { detail: result.errorDetail }));
+        }
+        if (result?.errorHint) {
+          logger.info(t('db.errorHint', { hint: result.errorHint }));
+        }
+        if (!result?.errorMsg && !result?.errorDetail && !result?.errorHint) {
+          logger.error(t('db.unknownError'));
+        }
         if (executed > 0) logger.info(t('db.executedBefore', { count: executed }));
         process.exit(1);
       }
