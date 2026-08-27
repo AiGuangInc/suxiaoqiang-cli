@@ -80,13 +80,13 @@ The plugin teaches Claude how to use the CLI — the CLI itself still needs to b
 
 ## Database migrations
 
-Create a migration file under `supabase/migrations/` named `<digits>_<memo>.sql` — everything before the first underscore must be digits (a `yyyyMMddHHmmss` timestamp is recommended, e.g. `20260709120000_create_users.sql`); files not matching this pattern are skipped, same as the Supabase CLI — then:
+Create a migration file under `supabase/migrations/` named `<digits>_<memo>.sql` — everything before the first underscore must be digits (a `yyyyMMddHHmmss` timestamp is recommended, e.g. `20260709120000_create_users.sql`). The timestamp prefix determines replay order and must be unique; files not matching this pattern are skipped, same as the Supabase CLI — then:
 
 ```bash
 sxq db push -m "add user profile tables"
 ```
 
-It pulls first, finds migrations that don't exist remotely yet, and executes them one by one in timestamp order — stopping at the first failure and printing the error. The server stores each successful migration as a project attachment automatically, so **don't push migration files with `sxq push`** (the CLI blocks them).
+It pulls first and finds migrations that don't exist remotely yet. If the pending batch contains duplicate timestamps, it aborts before executing any SQL; otherwise it executes migrations one by one in timestamp order, stopping at the first failure and printing the error. The server stores each successful migration as a project attachment automatically, so **don't push migration files with `sxq push`** (the CLI blocks them).
 
 ## Notes
 
