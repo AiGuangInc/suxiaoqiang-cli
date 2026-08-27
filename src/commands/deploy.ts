@@ -34,6 +34,31 @@ function printUrls(source: { previewUrl?: string; publishUrl?: string }): void {
   if (source.publishUrl) logger.info(t('common.publishUrl', { url: source.publishUrl }));
 }
 
+/** 服务端已返回失败终态时，组合总错误与失败步骤供 deploy / deploy --status 共用。 */
+function formatDeployFailure(version: PublishVersion): string | null {
+  const details: string[] = [];
+  const errorMessage = version.errorMessage?.trim();
+  if (errorMessage) details.push(errorMessage);
+
+  for (const step of version.deploymentSteps ?? []) {
+    if (step.status !== 'FAILED' && step.status !== 'UNKNOWN') continue;
+    const stepDetails = [step.message?.trim(), step.errorMessage?.trim()].filter(
+      (value): value is string => Boolean(value)
+    );
+    details.push(
+      t('deploy.failedStep', {
+        step: step.step,
+        status: step.status,
+        detail: stepDetails.join('; ') || t('deploy.unknownError'),
+      })
+    );
+  }
+
+  const uniqueDetails = [...new Set(details)];
+  if (uniqueDetails.length === 0) return null;
+  return `${t('deploy.serverFailed')}\n${uniqueDetails.map((detail) => `- ${detail}`).join('\n')}`;
+}
+
 export async function deployCommand(options: DeployOptions = {}): Promise<void> {
   const config = await getProjectConfig();
   if (!config) {
@@ -124,6 +149,11 @@ export async function deployCommand(options: DeployOptions = {}): Promise<void> 
         urls = { ...latest, ...urls };
         break;
       }
+      const current = latest.unPublishedVersion;
+      if (current?.encryptedId === version.encryptedId && current.deployStatus === 0) {
+        const failure = formatDeployFailure(current);
+        if (failure) throw new Error(failure);
+      }
       if (Date.now() >= deadline) {
         throw new Error(t('deploy.timeout', { minutes: POLL_TIMEOUT_MS / 60000 }));
       }
@@ -163,6 +193,8 @@ export async function deployStatusCommand(): Promise<void> {
       const v = info.unPublishedVersion;
       logger.info(t('deploy.statusPending', { time: formatTime(v.updatedAt) }));
       if (v.changeLogSummary) logger.dim(`  ${v.changeLogSummary.split('\n')[0]}`);
+      const failure = v.deployStatus === 0 ? formatDeployFailure(v) : null;
+      if (failure) logger.error(failure);
     } else {
       logger.info(t('deploy.statusNoPending'));
     }

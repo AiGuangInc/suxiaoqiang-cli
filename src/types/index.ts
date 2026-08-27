@@ -182,6 +182,20 @@ export interface PublishNewLogParams {
   orgId?: number;
 }
 
+/** 正式发布步骤状态。 */
+export interface PublishDeploymentStep {
+  /** DATABASE_MIGRATION / AUTH_CONFIG / FUNCTION_SECRETS / FRONTEND_BUILD 等 */
+  step: string;
+  /** PENDING / RUNNING / SUCCEEDED / FAILED / SKIPPED / UNKNOWN */
+  status: string;
+  startedAt?: number;
+  finishedAt?: number;
+  durationMs?: number;
+  message?: string;
+  resources?: string[];
+  errorMessage?: string;
+}
+
 /** 发布版本记录（文档写的是数字 id，实际返回加密串 encryptedId；updatedAt 为毫秒时间戳） */
 export interface PublishVersion {
   encryptedId: string;
@@ -189,8 +203,12 @@ export interface PublishVersion {
   changeLogSummary?: string;
   websiteIntroduction?: string;
   updatedAt?: number;
-  /** 发布状态 0未发布 1发布 */
+  /** 发布状态 0未发布/失败 1已发布 2发布中 */
   deployStatus?: number;
+  /** 本次发布失败信息；成功时为空 */
+  errorMessage?: string;
+  /** 本次发布的结构化步骤状态 */
+  deploymentSteps?: PublishDeploymentStep[];
 }
 
 /** queryPublishLogInfo 响应 data */
