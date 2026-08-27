@@ -11,8 +11,24 @@ import { debug, isDebug } from '../../lib/debug.js';
 import { t } from '../../lib/i18n.js';
 
 export const MIGRATIONS_DIR = 'supabase/migrations';
-/** 强制：<数字>_<描述>.sql（首个下划线前必须全是数字）；数字建议用 yyyyMMddHHmmss 保证执行顺序 */
+/** 强制：<数字>_<描述>.sql；数字建议使用唯一的 yyyyMMddHHmmss，作为迁移回放排序键 */
 const MIGRATION_NAME_RE = /^\d+_.+\.sql$/;
+
+function findDuplicateTimestamps(names: string[]): Map<string, string[]> {
+  const migrationsByTimestamp = new Map<string, string[]>();
+  for (const name of names) {
+    const timestamp = name.slice(0, name.indexOf('_'));
+    const migrations = migrationsByTimestamp.get(timestamp) ?? [];
+    migrations.push(name);
+    migrationsByTimestamp.set(timestamp, migrations);
+  }
+
+  return new Map(
+    [...migrationsByTimestamp.entries()]
+      .filter(([, migrations]) => migrations.length > 1)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
 
 export interface DbPushOptions {
   message?: string;
@@ -67,6 +83,17 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
     if (newMigrations.length === 0) {
       spinner.succeed(t('db.noNew'));
       return;
+    }
+
+    // 时间戳是迁移回放的排序键；重复时间戳会让顺序不明确，执行任何 SQL 前直接中止
+    const duplicateTimestamps = findDuplicateTimestamps(newMigrations);
+    if (duplicateTimestamps.size > 0) {
+      spinner.fail(t('db.duplicateTimestamps'));
+      for (const [timestamp, names] of duplicateTimestamps) {
+        logger.error(t('db.duplicateTimestamp', { timestamp }));
+        for (const name of names.sort()) logger.dim(`  ${MIGRATIONS_DIR}/${name}`);
+      }
+      process.exit(1);
     }
 
     // ── 4. 按时间戳顺序逐个执行，失败即停 ──────────────────

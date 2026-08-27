@@ -71,11 +71,15 @@ Full flow:
    `<digits>_<memo>.sql` (everything before the first underscore must be digits) — files not
    matching are SKIPPED with a warning, same as the Supabase CLI, so a misnamed migration
    silently never runs. Use a `yyyyMMddHHmmss` timestamp as the digits — generate it with
-   `date +%Y%m%d%H%M%S` (e.g. `20260709120000_create_users.sql`) — so execution order stays
-   deterministic.
+   `date +%Y%m%d%H%M%S` (e.g. `20260709120000_create_users.sql`). The timestamp prefix is the
+   replay ordering key and MUST be unique across the project's migrations. Before creating a
+   migration, inspect the existing filenames; if the timestamp already exists, generate a
+   later one rather than reusing it.
 2. Run `sxq db push`. It will:
    - pull remote changes first (aborts if there are merge conflicts — resolve, then rerun);
    - diff local files against the remote baseline to find migrations that are new;
+   - reject the entire pending batch before executing SQL if two new migrations have the same
+     timestamp, because their replay order would be ambiguous;
    - execute the new migrations one at a time, in ascending timestamp order;
    - stop at the first failure and print the server's error message. Migrations before the
      failed one are already applied; fix the failing file and rerun — only the remaining
