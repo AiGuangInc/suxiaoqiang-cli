@@ -2,7 +2,7 @@ import ora, { type Ora } from 'ora';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { getProjectConfig } from '../lib/config.js';
+import { getProjectConfig, getProjectPushBranch } from '../lib/config.js';
 import { canSyncCode, querySessionAttachmentsForSync, queryAttachment } from '../lib/api.js';
 import { buildAttachmentTree, flattenTree, loadManifest, saveManifest, getManifestPath, hashContent } from '../lib/manifest.js';
 import { threeWayMerge } from '../lib/merge.js';
@@ -11,6 +11,7 @@ import { debug, isDebug } from '../lib/debug.js';
 import { loadSyncIgnore, type SyncIgnore } from '../lib/ignore.js';
 import { t } from '../lib/i18n.js';
 import type { SessionAttachment } from '../types/index.js';
+import { getGitContext } from '../lib/git.js';
 
 /** 本地元数据目录不接受远程写入 */
 function isProtectedPath(name: string): boolean {
@@ -38,6 +39,26 @@ async function readLocal(name: string): Promise<string | null> {
 export interface PullResult {
   conflicted: string[];
   snapshotId: string | null;
+}
+
+export interface RunPullOptions {
+  /** push 已单独展示 Git 校验结果时关闭重复提示。 */
+  showGitNotice?: boolean;
+}
+
+async function showGitBranchNotice(spinner: Ora): Promise<void> {
+  const [git, config] = await Promise.all([getGitContext(), getProjectConfig()]);
+  if (!git || !config) return;
+
+  const configured = getProjectPushBranch(config);
+  const current = git.branch ?? 'detached HEAD';
+  spinner.stop();
+  if (git.branch === configured) {
+    logger.info(t('pull.gitBranchReady', { current, configured }));
+  } else {
+    logger.warn(t('pull.gitBranchMismatch', { current, configured }));
+  }
+  spinner.start();
 }
 
 /** 全量拉取：查询时携带内容，写入全部文件（.gitignore 命中的不写盘、不进清单） */
@@ -226,7 +247,12 @@ async function incrementalPull(sessionId: string, spinner: Ora, ig: SyncIgnore):
 }
 
 /** 执行一次拉取（自动判断全量/增量），供 pull 命令和 push 前置检查复用 */
-export async function runPull(sessionId: string, spinner: Ora): Promise<PullResult> {
+export async function runPull(
+  sessionId: string,
+  spinner: Ora,
+  options: RunPullOptions = {}
+): Promise<PullResult> {
+  if (options.showGitNotice !== false) await showGitBranchNotice(spinner);
   spinner.text = t('pull.checkingSyncPermission');
   const syncable = await canSyncCode({ sessionId });
   debug('canSyncCode', syncable);

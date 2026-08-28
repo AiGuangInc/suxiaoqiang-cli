@@ -14,15 +14,18 @@ import {
   getLang,
   setLang,
   deleteLang,
+  DEFAULT_PUSH_BRANCH,
+  getProjectConfig,
+  setProjectConfig,
 } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
 import { t } from '../lib/i18n.js';
 
 /** 配置项定义：get/set/unset 的统一入口 */
 interface ConfigEntry {
-  get: () => string | undefined;
-  set: (value: string) => void;
-  unset: () => void;
+  get: () => string | undefined | Promise<string | undefined>;
+  set: (value: string) => void | Promise<void>;
+  unset: () => void | Promise<void>;
   /** 是否在 list 和帮助中展示 */
   visible: boolean;
   /** 敏感项：list 不展示，set 成功提示不回显值 */
@@ -46,6 +49,32 @@ const entries: Record<string, ConfigEntry> = {
       setLang(value);
     },
     unset: deleteLang,
+    visible: true,
+  },
+  'push-branch': {
+    get: async () => (await getProjectConfig())?.pushBranch || DEFAULT_PUSH_BRANCH,
+    set: async (value) => {
+      const branch = value.trim();
+      if (!branch || /\s/.test(branch)) {
+        logger.error(t('config.invalidPushBranch'));
+        process.exit(1);
+      }
+      const config = await getProjectConfig();
+      if (!config) {
+        logger.error(t('common.notLinked'));
+        process.exit(1);
+      }
+      await setProjectConfig({ ...config, pushBranch: branch });
+    },
+    unset: async () => {
+      const config = await getProjectConfig();
+      if (!config) {
+        logger.error(t('common.notLinked'));
+        process.exit(1);
+      }
+      const { pushBranch: _pushBranch, ...rest } = config;
+      await setProjectConfig(rest);
+    },
     visible: true,
   },
   'x-service-chain': {
@@ -84,17 +113,18 @@ function resolveEntry(key: string): ConfigEntry {
   return entry;
 }
 
-export function configSetCommand(key: string, value: string): void {
+export async function configSetCommand(key: string, value: string): Promise<void> {
   const entry = resolveEntry(key);
-  entry.set(value);
+  await entry.set(value);
+  const configured = await entry.get();
   logger.success(
-    entry.secret ? t('config.setSecret', { key }) : t('config.set', { key, value: entry.get() ?? '' })
+    entry.secret ? t('config.setSecret', { key }) : t('config.set', { key, value: configured ?? '' })
   );
 }
 
-export function configGetCommand(key: string): void {
+export async function configGetCommand(key: string): Promise<void> {
   const entry = resolveEntry(key);
-  const value = entry.get();
+  const value = await entry.get();
   if (value === undefined) {
     logger.dim(t('config.notSet', { key }));
   } else {
@@ -102,16 +132,16 @@ export function configGetCommand(key: string): void {
   }
 }
 
-export function configUnsetCommand(key: string): void {
+export async function configUnsetCommand(key: string): Promise<void> {
   const entry = resolveEntry(key);
-  entry.unset();
+  await entry.unset();
   logger.success(t('config.cleared', { key }));
 }
 
-export function configListCommand(): void {
+export async function configListCommand(): Promise<void> {
   for (const [key, entry] of Object.entries(entries)) {
     if (entry.secret) continue;
-    const value = entry.get();
+    const value = await entry.get();
     // 隐藏项仅在已设置时展示
     if (!entry.visible && value === undefined) continue;
     console.log(`${key} = ${value ?? ''}`);

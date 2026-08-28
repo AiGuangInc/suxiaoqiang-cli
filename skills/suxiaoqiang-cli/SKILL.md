@@ -32,7 +32,7 @@ fails fast on non-TTY with a hint, but don't rely on prompts).
 sxq link <sessionId> -y     # bind current dir to a project (verifies ownership; needs login)
 sxq pull                    # pull remote files (incremental, three-way merge)
 # ... edit files locally ...
-sxq push -m "<summary>"     # push local changes (pulls first; aborts on conflict)
+sxq push -m "<summary>"     # review add/modify/delete plan, then confirm the push
 sxq preview                 # update the frontend preview; equivalent to sxq preview front
 sxq preview ef              # update only the Edge Function preview
 sxq deploy                   # open the linked project's release confirmation page
@@ -41,9 +41,12 @@ sxq deploy --status         # read-only: pending/published versions + live URL
 
 ## Command details & flags
 
-- `sxq push [-m <message>]` — pushes added, modified, and deleted text files. Respects `.gitignore` plus
-  built-in ignores (`node_modules`, `dist`, `.git`, binaries >5MB are skipped). If it aborts
-  with conflict markers (`<<<<<<< local`), resolve the markers in the listed files, then push again.
+- `sxq push [-f] [-y] [-m <message>]` — pulls first, then lists every added, modified, and deleted
+  text file before pushing. Git projects default to the project-level `push-branch` (`main`);
+  `-f` ignores branch restrictions, while `-y` confirms the displayed plan without an interactive
+  prompt. Only use `-y` after the user has authorized the exact push. Respects `.gitignore` plus
+  built-in ignores (`node_modules`, `dist`, `.git`; binaries and files over 5MB are skipped). If it
+  aborts with conflict markers (`<<<<<<< local`), resolve the listed files, then push again.
 - `sxq preview [front|ef] [--message-id <id>]` — updates the preview environment. `front` is
   the default and polls the preview build for up to 10 min; `ef` deploys all Edge Functions
   from the linked project's latest completed mainline version. `--message-id` only applies to
@@ -52,9 +55,11 @@ sxq deploy --status         # read-only: pending/published versions + live URL
 - `sxq deploy` — opens the linked project's release confirmation page in the user's browser.
   It never calls the release API directly. The user must review and confirm the release on the
   page; agents must not claim that a release happened just because this command exited 0.
-- `sxq pull` — safe to run anytime; local-only edits are preserved via three-way merge.
+- `sxq pull` — local-only edits are preserved via three-way merge. In a Git project, run it on the
+  intended branch because it updates that worktree and records its Git context in `.sxq`.
   Conflicted files are listed and contain git-style markers; resolve before pushing.
-- `sxq config set|get|unset|list` — keys: `host` (API base URL), `lang` (`zh`/`en`).
+- `sxq config set|get|unset|list` — keys: `host` (API base URL), `lang` (`zh`/`en`), and the
+  project-level `push-branch` (defaults to `main`).
 - `--debug` on any command prints full request/response logs (tokens masked) — use it when
   diagnosing failures.
 
