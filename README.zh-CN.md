@@ -80,7 +80,7 @@ sxq deploy                  # 在浏览器中打开项目发布确认页
 
 ## 数据库迁移
 
-在 `supabase/migrations/` 下创建迁移文件，命名必须为 `<数字>_<描述>.sql`（首个下划线前须全为数字，数字建议用 `yyyyMMddHHmmss`，如 `20260709120000_create_users.sql`）。时间戳前缀用于确定迁移回放顺序，必须唯一；不符合命名规范的文件会被忽略不执行，与 Supabase CLI 行为一致。然后执行：
+在 `supabase/migrations/` 下创建迁移文件，命名必须严格遵循 `<yyyyMMddHHmmss>_<标识>.sql`：前缀必须是 14 位时间戳，例如 `20260506210939_b9c21d2a344c4871b08a744b2e724176.sql`。时间戳前缀用于确定迁移回放顺序，在项目内必须唯一。只要存在一个命名不合规的新增 SQL 文件，`sxq db push` 就会在执行任何 SQL 前中止整批迁移。然后执行：
 
 ```bash
 sxq db push -m "新增用户资料表"

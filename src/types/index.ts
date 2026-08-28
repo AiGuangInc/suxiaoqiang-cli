@@ -222,7 +222,7 @@ export interface AttachmentManifest {
 /** supabaseExecuteMigration 请求参数（执行数据库迁移） */
 export interface SupabaseMigrationParams {
   sessionId: string;
-  /** 迁移文件名（附件全路径，如 supabase/migrations/20260709120000_xxx.sql） */
+  /** 迁移文件名（附件全路径，如 supabase/migrations/20260506210939_b9c21d2a344c4871b08a744b2e724176.sql） */
   fileName: string;
   /** 迁移文件内容（DDL SQL） */
   content: string;

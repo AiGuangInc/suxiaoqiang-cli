@@ -97,19 +97,21 @@ Superun projects use Supabase. Schema changes MUST go through migration files ex
 
 Full flow:
 
-1. Write the DDL in a new file under `supabase/migrations/`. The name MUST be
-   `<digits>_<memo>.sql` (everything before the first underscore must be digits) — files not
-   matching are SKIPPED with a warning, same as the Supabase CLI, so a misnamed migration
-   silently never runs. Use a `yyyyMMddHHmmss` timestamp as the digits — generate it with
-   `date +%Y%m%d%H%M%S` (e.g. `20260709120000_create_users.sql`). The timestamp prefix is the
-   replay ordering key and MUST be unique across the project's migrations. Before creating a
-   migration, inspect the existing filenames; if the timestamp already exists, generate a
-   later one rather than reusing it.
+1. Write the DDL in a new file under `supabase/migrations/`. Its name MUST strictly match
+   `<yyyyMMddHHmmss>_<identifier>.sql`: the prefix is exactly 14 digits, generated with
+   `date +%Y%m%d%H%M%S` (for example,
+   `20260506210939_b9c21d2a344c4871b08a744b2e724176.sql`). The timestamp prefix is the replay
+   ordering key and MUST be unique across the project's migrations. Before creating a migration,
+   inspect the existing filenames; if the timestamp already exists, generate a later one rather
+   than reusing it. Do not use Unix timestamps, dates with separators, shortened dates, or any
+   other prefix width: lexical filename order would no longer reliably match migration time.
 2. Run `sxq db push`. It will:
    - apply the same Git local-file safety checks as `pull` and `push` before reading or writing
      project files (`-f` only ignores configured/manifest branch restrictions);
    - pull remote changes first (aborts if there are merge conflicts — resolve, then rerun);
    - diff local files against the remote baseline to find migrations that are new;
+   - abort the entire pending batch before executing any SQL if any new `.sql` filename does not
+     contain an exact 14-digit `yyyyMMddHHmmss` prefix;
    - reject the entire pending batch before executing SQL if a new migration reuses a timestamp
      from another pending migration or an existing remote migration;
    - execute the new migrations one at a time, in ascending timestamp order;

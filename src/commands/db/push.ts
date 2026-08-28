@@ -11,8 +11,8 @@ import { debug, isDebug } from '../../lib/debug.js';
 import { t } from '../../lib/i18n.js';
 
 export const MIGRATIONS_DIR = 'supabase/migrations';
-/** 强制：<数字>_<描述>.sql；数字建议使用唯一的 yyyyMMddHHmmss，作为迁移回放排序键 */
-const MIGRATION_NAME_RE = /^\d+_.+\.sql$/;
+/** 强制：<14 位 yyyyMMddHHmmss>_<标识>.sql；时间戳是迁移回放排序键 */
+const MIGRATION_NAME_RE = /^\d{14}_.+\.sql$/;
 
 interface MigrationTimestampConflict {
   existing: string[];
@@ -107,15 +107,14 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
       .map((e) => e.name);
     const newFiles = localFiles.filter((name) => !baseline.has(`${MIGRATIONS_DIR}/${name}`));
 
-    // ── 3. 过滤命名不合规的文件（与 Supabase CLI 行为一致：不执行）─
+    // ── 3. 严格校验命名；任一不合规文件都会让回放顺序失真，整批中止 ─
     const invalid = newFiles.filter((name) => !MIGRATION_NAME_RE.test(name));
     const newMigrations = newFiles.filter((name) => MIGRATION_NAME_RE.test(name));
     debug('db push diff', { localFiles, existingMigrations, newMigrations, invalid });
     if (invalid.length > 0) {
-      spinner.stop();
-      logger.warn(t('db.invalidNames'));
+      spinner.fail(t('db.invalidNames'));
       for (const name of invalid) logger.dim(`  ${MIGRATIONS_DIR}/${name}`);
-      spinner.start();
+      process.exit(1);
     }
 
     if (newMigrations.length === 0) {
