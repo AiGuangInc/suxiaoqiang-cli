@@ -64,8 +64,9 @@ program
 program
   .command('pull')
   .description(t('cmd.pull'))
-  .action(async () => {
-    await pullCommand();
+  .option('-f, --force', t('cmd.gitForce'))
+  .action(async (options: { force?: boolean }) => {
+    await pullCommand(options);
   });
 
 // ─── sxq push ────────────────────────────────────────────
@@ -74,7 +75,7 @@ program
   .command('push')
   .description(t('cmd.push'))
   .option('-m, --message <message>', t('cmd.pushMessage'))
-  .option('-f, --force', t('cmd.pushForce'))
+  .option('-f, --force', t('cmd.gitForce'))
   .option('-y, --yes', t('cmd.pushYes'))
   .action(async (options: { message?: string; force?: boolean; yes?: boolean }) => {
     await pushCommand(options);
@@ -173,7 +174,8 @@ const db = program
 db.command('push')
   .description(t('cmd.dbPush'))
   .option('-m, --message <message>', t('cmd.dbPushMessage'))
-  .action(async (options: { message?: string }) => {
+  .option('-f, --force', t('cmd.gitForce'))
+  .action(async (options: { message?: string; force?: boolean }) => {
     await dbPushCommand(options);
   });
 

@@ -14,24 +14,54 @@ export const MIGRATIONS_DIR = 'supabase/migrations';
 /** 强制：<数字>_<描述>.sql；数字建议使用唯一的 yyyyMMddHHmmss，作为迁移回放排序键 */
 const MIGRATION_NAME_RE = /^\d+_.+\.sql$/;
 
-function findDuplicateTimestamps(names: string[]): Map<string, string[]> {
-  const migrationsByTimestamp = new Map<string, string[]>();
+interface MigrationTimestampConflict {
+  existing: string[];
+  pending: string[];
+}
+
+function addMigrationsByTimestamp(
+  groups: Map<string, MigrationTimestampConflict>,
+  names: string[],
+  source: keyof MigrationTimestampConflict
+): void {
   for (const name of names) {
     const timestamp = name.slice(0, name.indexOf('_'));
-    const migrations = migrationsByTimestamp.get(timestamp) ?? [];
-    migrations.push(name);
-    migrationsByTimestamp.set(timestamp, migrations);
+    const migrations = groups.get(timestamp) ?? { existing: [], pending: [] };
+    migrations[source].push(name);
+    groups.set(timestamp, migrations);
   }
+}
+
+function findTimestampConflicts(
+  pendingNames: string[],
+  existingNames: string[]
+): Map<string, MigrationTimestampConflict> {
+  const migrationsByTimestamp = new Map<string, MigrationTimestampConflict>();
+  addMigrationsByTimestamp(migrationsByTimestamp, existingNames, 'existing');
+  addMigrationsByTimestamp(migrationsByTimestamp, pendingNames, 'pending');
 
   return new Map(
     [...migrationsByTimestamp.entries()]
-      .filter(([, migrations]) => migrations.length > 1)
+      // 只拦截与本次待执行迁移相关的冲突；远端历史遗留冲突不阻塞其他新迁移。
+      .filter(
+        ([, migrations]) =>
+          migrations.pending.length > 0 &&
+          migrations.existing.length + migrations.pending.length > 1
+      )
+      .map(([timestamp, migrations]) => [
+        timestamp,
+        {
+          existing: migrations.existing.sort(),
+          pending: migrations.pending.sort(),
+        },
+      ] as const)
       .sort(([left], [right]) => left.localeCompare(right)),
   );
 }
 
 export interface DbPushOptions {
   message?: string;
+  force?: boolean;
 }
 
 export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> {
@@ -46,7 +76,10 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
 
   try {
     // ── 1. 先拉取远程变更（拿到远端已有迁移的基线），有冲突则中断 ─
-    const pullResult = await runPull(sessionId, spinner);
+    const pullResult = await runPull(sessionId, spinner, {
+      gitCommand: 'db push',
+      gitForce: options.force ?? false,
+    });
     if (pullResult.conflicted.length > 0) {
       spinner.fail(t('push.abortConflict'));
       logger.warn(t('push.conflictMarkerHeader'));
@@ -64,6 +97,11 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
 
     const manifest = await loadManifest();
     const baseline = manifest ? flattenTree(manifest.tree) : new Map();
+    const migrationPathPrefix = `${MIGRATIONS_DIR}/`;
+    const existingMigrations = pullResult.remoteFiles
+      .filter((path) => path.startsWith(migrationPathPrefix))
+      .map((path) => path.slice(migrationPathPrefix.length))
+      .filter((name) => !name.includes('/') && MIGRATION_NAME_RE.test(name));
     const localFiles = (await readdir(dir, { withFileTypes: true }))
       .filter((e) => e.isFile() && e.name.endsWith('.sql'))
       .map((e) => e.name);
@@ -72,7 +110,7 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
     // ── 3. 过滤命名不合规的文件（与 Supabase CLI 行为一致：不执行）─
     const invalid = newFiles.filter((name) => !MIGRATION_NAME_RE.test(name));
     const newMigrations = newFiles.filter((name) => MIGRATION_NAME_RE.test(name));
-    debug('db push diff', { localFiles, newMigrations, invalid });
+    debug('db push diff', { localFiles, existingMigrations, newMigrations, invalid });
     if (invalid.length > 0) {
       spinner.stop();
       logger.warn(t('db.invalidNames'));
@@ -85,13 +123,18 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
       return;
     }
 
-    // 时间戳是迁移回放的排序键；重复时间戳会让顺序不明确，执行任何 SQL 前直接中止
-    const duplicateTimestamps = findDuplicateTimestamps(newMigrations);
-    if (duplicateTimestamps.size > 0) {
-      spinner.fail(t('db.duplicateTimestamps'));
-      for (const [timestamp, names] of duplicateTimestamps) {
-        logger.error(t('db.duplicateTimestamp', { timestamp }));
-        for (const name of names.sort()) logger.dim(`  ${MIGRATIONS_DIR}/${name}`);
+    // 时间戳是迁移回放的全局唯一键；与远端已有或本批其他迁移重复时，执行 SQL 前中止。
+    const timestampConflicts = findTimestampConflicts(newMigrations, existingMigrations);
+    if (timestampConflicts.size > 0) {
+      spinner.fail(t('db.timestampConflicts'));
+      for (const [timestamp, migrations] of timestampConflicts) {
+        logger.error(t('db.timestampConflict', { timestamp }));
+        for (const name of migrations.existing) {
+          logger.dim(`  ${MIGRATIONS_DIR}/${name}${t('db.remoteExistingSuffix')}`);
+        }
+        for (const name of migrations.pending) {
+          logger.dim(`  ${MIGRATIONS_DIR}/${name}${t('db.pendingSuffix')}`);
+        }
       }
       process.exit(1);
     }
@@ -129,7 +172,10 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
 
     // ── 5. 服务端已写入迁移附件，再拉一次同步清单 ──────────
     spinner.text = t('db.syncing');
-    await runPull(sessionId, spinner);
+    await runPull(sessionId, spinner, {
+      gitCommand: 'db push',
+      gitForce: options.force ?? false,
+    });
 
     spinner.succeed(t('db.success', { count: executed }));
     for (const name of newMigrations) logger.dim(`  ${MIGRATIONS_DIR}/${name}`);
