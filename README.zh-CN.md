@@ -5,7 +5,7 @@
 
 [English](./README.md) | 简体中文
 
-`sxq` 是 vibe coding 平台 [Superun](https://www.superun.com) 的官方命令行工具。它把你的 Superun 项目文件同步到本地，让你用熟悉的编辑器或 AI 编程智能体修改代码，然后推送回远端、触发预览编译、正式上线——全程不离开终端。
+`sxq` 是 vibe coding 平台 [Superun](https://www.superun.com) 的官方命令行工具。它把你的 Superun 项目文件同步到本地，让你用熟悉的编辑器或 AI 编程智能体修改代码，然后推送回远端、触发预览编译，并打开正式上线确认页。
 
 ## 安装
 
@@ -47,8 +47,8 @@ sxq preview                 # 等同于 sxq preview front，完成后输出预�
 # 按需单独更新 Edge Function 预览
 sxq preview ef
 
-# 6. 正式上线
-sxq deploy                  # 确认后轮询直到发布完成
+# 6. 打开正式上线确认页
+sxq deploy                  # 在浏览器中打开项目发布确认页
 ```
 
 ## 命令一览
@@ -61,7 +61,7 @@ sxq deploy                  # 确认后轮询直到发布完成
 | `sxq push [-m <msg>]` | 推送本地新增、修改和删除并生成快照，`-m` 作为快照备注。推送前先拉取远端变更，有冲突则中断。 |
 | `sxq preview [front\|ef]` | 更新预览环境；默认 `front`，`ef` 单独部署 Edge Function。 |
 | `sxq publish` | `sxq preview front` 的兼容别名。 |
-| `sxq deploy [-y] [-m <msg>] [--region CN\|INTL]` | 正式上线待发布版本并轮询至完成。无待发布版本时以最新已发布版本重新发布。 |
+| `sxq deploy` | 打开当前关联项目的发布确认页，CLI 不会直接发布。 |
 | `sxq deploy --status` | 只查看待上线/已发布版本和访问地址，不触发上线。 |
 | `sxq db push [-m <msg>]` | 执行 `supabase/migrations/` 下新增的数据库迁移，`-m` 用于传递迁移备注。 |
 | `sxq config set\|get\|unset\|list` | 管理配置。支持项：`host`、`lang`（`zh` / `en`）。 |
@@ -91,9 +91,9 @@ sxq db push -m "新增用户资料表"
 ## 说明
 
 - **支持 `.gitignore`**：`pull` / `push` 遵循项目根目录的 `.gitignore`（另有 `node_modules`、`dist`、`.git` 等内置规则），被忽略的文件不参与同步。
-- **非交互 / CI / AI 智能体**：所有确认提示都有 `-y` 替代；非 TTY 环境下会快速报错并提示，不会挂起等待输入。
+- **非交互 / CI / AI 智能体**：终端内的确认提示可用 `-y`；正式发布必须在浏览器中确认，`sxq deploy` 无法绕过。
 - **语言**：按系统 locale 自动检测，可用 `sxq config set lang zh` 固定。
-- **云服务费**：`sxq deploy` 会正式上线并可能产生云服务费，确认提示（或 `-y`）即表示知晓。
+- **正式发布**：`sxq deploy` 只负责打开发布确认页，请在浏览器中核对并确认发布。
 
 ## 开源协议
 

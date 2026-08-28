@@ -162,26 +162,6 @@ export interface DeployEdgeFunctionResult {
   errorMessages?: string;
 }
 
-/** publishNewLogV2 请求参数（正式上线）。文档里的 logId 是错的，实际字段是 encryptedId */
-export interface PublishNewLogParams {
-  sessionId: string;
-  /** queryPublishLogInfo 返回的待上线版本 encryptedId */
-  encryptedId: string;
-  changeLog?: string;
-  changeLogSummary?: string;
-  websiteIntroduction?: string;
-  /** 指定 replyMessageId 重发；为空走默认"最近一条已完成 AGENT 消息" */
-  messageId?: string;
-  /** 目标机房，默认当前机房。CN 主站 / INTL 国际站 */
-  targetRegion?: string;
-  /** 用户已确认云服务费 */
-  acknowledgedCloudServiceFee?: boolean;
-  accId?: number;
-  userId?: number;
-  __product?: number;
-  orgId?: number;
-}
-
 /** 发布版本记录（文档写的是数字 id，实际返回加密串 encryptedId；updatedAt 为毫秒时间戳） */
 export interface PublishVersion {
   encryptedId: string;
@@ -203,14 +183,6 @@ export interface PublishLogInfo {
   /** 线上地址 */
   publishUrl?: string;
 }
-
-/** publishNewLogV2 响应 data：旧版为 boolean，新版为含地址的对象 */
-export type PublishNewLogResult =
-  | boolean
-  | {
-      previewUrl?: string;
-      publishUrl?: string;
-    };
 
 /** 附件树叶子节点：仅记录比较所需的字段 */
 export interface AttachmentMeta {

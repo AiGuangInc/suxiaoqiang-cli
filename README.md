@@ -5,7 +5,7 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-`sxq` is the official command-line tool for [Superun](https://www.superun.com), the vibe coding platform. It syncs your Superun project files to your local machine so you can edit them with your favorite editor or AI coding agent, then push changes back, trigger a preview build, and release to production — all from the terminal.
+`sxq` is the official command-line tool for [Superun](https://www.superun.com), the vibe coding platform. It syncs your Superun project files to your local machine so you can edit them with your favorite editor or AI coding agent, then push changes back, trigger a preview build, and open the production release confirmation page.
 
 ## Installation
 
@@ -47,8 +47,8 @@ sxq preview                 # same as sxq preview front; prints the preview URL 
 # Update only the Edge Function preview when needed
 sxq preview ef
 
-# 6. Release to production
-sxq deploy                  # asks for confirmation, then polls until live
+# 6. Open the production release confirmation
+sxq deploy                  # opens the project release confirmation page in your browser
 ```
 
 ## Commands
@@ -61,7 +61,7 @@ sxq deploy                  # asks for confirmation, then polls until live
 | `sxq push [-m <msg>]` | Push local additions, modifications, and deletions, then create a snapshot using the optional note. Pulls first and aborts on conflicts. |
 | `sxq preview [front\|ef]` | Update the preview environment; defaults to `front`, while `ef` deploys Edge Functions only. |
 | `sxq publish` | Compatibility alias for `sxq preview front`. |
-| `sxq deploy [-y] [-m <msg>] [--region CN\|INTL]` | Release the pending version and poll until live. With no pending version, republishes the latest release. |
+| `sxq deploy` | Open the linked project's release confirmation page. The CLI does not release directly. |
 | `sxq deploy --status` | Show pending / published versions and the live URL without releasing. |
 | `sxq db push [-m <msg>]` | Execute new database migrations under `supabase/migrations/`; `-m` supplies the migration note. |
 | `sxq config set\|get\|unset\|list` | Manage config. Keys: `host`, `lang` (`zh` / `en`). |
@@ -91,9 +91,9 @@ It pulls first and finds migrations that don't exist remotely yet. If the pendin
 ## Notes
 
 - **`.gitignore` support**: `pull` / `push` respect your project's `.gitignore` (plus built-in ignores like `node_modules`, `dist`, `.git`). Ignored files are never synced.
-- **Non-interactive / CI / AI agents**: every confirmation prompt has a `-y` flag. In non-TTY environments the CLI fails fast with a hint instead of hanging.
+- **Non-interactive / CI / AI agents**: terminal confirmation prompts have a `-y` flag. Production release confirmation always happens in the browser; `sxq deploy` cannot bypass it.
 - **Language**: auto-detected from your locale; override with `sxq config set lang en`.
-- **Cloud fees**: `sxq deploy` releases to production and may incur cloud service fees; the confirmation prompt (or `-y`) acknowledges this.
+- **Production releases**: `sxq deploy` only opens the release confirmation page. Review and confirm the release in the browser.
 
 ## License
 

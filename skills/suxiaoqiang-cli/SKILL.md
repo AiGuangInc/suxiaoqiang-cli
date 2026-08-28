@@ -10,8 +10,9 @@ description: >
 
 # suxiaoqiang-cli (sxq)
 
-`sxq` syncs a Superun project (identified by a `sessionId`) with a local directory, and drives
-the publish/release pipeline. All commands run non-interactively when needed — **always prefer
+`sxq` syncs a Superun project (identified by a `sessionId`) with a local directory, drives the
+preview pipeline, and opens the browser for production release confirmation. All commands run
+non-interactively when needed — **always prefer
 the non-interactive forms below**; interactive prompts hang in agent environments (the CLI
 fails fast on non-TTY with a hint, but don't rely on prompts).
 
@@ -34,7 +35,7 @@ sxq pull                    # pull remote files (incremental, three-way merge)
 sxq push -m "<summary>"     # push local changes (pulls first; aborts on conflict)
 sxq preview                 # update the frontend preview; equivalent to sxq preview front
 sxq preview ef              # update only the Edge Function preview
-sxq deploy -y -m "<log>"    # release to production; polls until live, prints live URL
+sxq deploy                   # open the linked project's release confirmation page
 sxq deploy --status         # read-only: pending/published versions + live URL
 ```
 
@@ -48,11 +49,9 @@ sxq deploy --status         # read-only: pending/published versions + live URL
   from the linked project's latest completed mainline version. `--message-id` only applies to
   `front`. The legacy `sxq publish` command remains available for compatibility, prints a
   deprecation warning, and then runs the same behavior as `sxq preview front`.
-- `sxq deploy` — **releases to production and may incur cloud service fees.** `-y` skips the
-  confirmation and acknowledges the fee. Do NOT pass `-y` unless the user explicitly asked to
-  deploy/release. With no pending version it republishes the latest released version
-  (no progress polling in that mode — verify afterwards with `sxq deploy --status`).
-  Optional: `--region CN|INTL` for cross-region release, `-m` to override the changelog.
+- `sxq deploy` — opens the linked project's release confirmation page in the user's browser.
+  It never calls the release API directly. The user must review and confirm the release on the
+  page; agents must not claim that a release happened just because this command exited 0.
 - `sxq pull` — safe to run anytime; local-only edits are preserved via three-way merge.
   Conflicted files are listed and contain git-style markers; resolve before pushing.
 - `sxq config set|get|unset|list` — keys: `host` (API base URL), `lang` (`zh`/`en`).
@@ -94,10 +93,11 @@ Full flow:
 
 1. Run `sxq pull` before editing if the project may have changed remotely (e.g. the user also
    edits on the Superun web UI).
-2. After pushing code changes the user wants to see: `sxq preview` for a preview; only
-   `sxq deploy` when they ask to go live.
+2. After pushing code changes the user wants to see: `sxq preview` for a preview; only run
+   `sxq deploy` when they ask to go live, then leave the final confirmation to the user in the browser.
 3. `deploy --status` is read-only and always safe for checking state.
-4. Exit code 0 = success. Non-zero exit prints an actionable error message on stderr —
-   read it before retrying; do not blindly retry `deploy`.
+4. Exit code 0 means the requested CLI action succeeded. For `sxq deploy`, it only means the
+   release confirmation page was opened, not that the project was released. Non-zero exit prints
+   an actionable error message on stderr — read it before retrying.
 5. Never commit or expose the contents of `.sxq/` (it contains the sessionId and session
    metadata; anyone with the sessionId may be able to read project files).

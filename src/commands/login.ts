@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { exec } from 'node:child_process';
 import ora from 'ora';
 import { setToken, getToken, clearToken, getApiBase } from '../lib/config.js';
 import { pollCliToken, pageQuerySessionByLastId } from '../lib/api.js';
@@ -7,21 +6,11 @@ import { logger } from '../lib/logger.js';
 import { confirm } from '../lib/prompt.js';
 import { isDebug } from '../lib/debug.js';
 import { t } from '../lib/i18n.js';
+import { openBrowser } from '../lib/browser.js';
 
 /** 轮询间隔与总超时 */
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
-
-/** 跨平台打开浏览器，失败不抛错（终端里已打印 URL 供手动打开） */
-function openBrowser(url: string): void {
-  const command =
-    process.platform === 'darwin'
-      ? `open "${url}"`
-      : process.platform === 'win32'
-        ? `start "" "${url}"`
-        : `xdg-open "${url}"`;
-  exec(command, () => {});
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

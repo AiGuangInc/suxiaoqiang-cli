@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { loginCommand } from './commands/login.js';
 import { linkCommand } from './commands/link.js';
 import { pullCommand } from './commands/pull.js';
@@ -102,16 +102,17 @@ program
 program
   .command('deploy')
   .description(t('cmd.deploy'))
-  .option('-m, --message <message>', t('cmd.deployMessage'))
-  .option('--region <region>', t('cmd.deployRegion'))
-  .option('-y, --yes', t('cmd.deployYes'))
+  // 兼容旧调用，但发布参数不再影响行为，也不会绕过网页确认。
+  .addOption(new Option('-m, --message <message>').hideHelp())
+  .addOption(new Option('--region <region>').hideHelp())
+  .addOption(new Option('-y, --yes').hideHelp())
   .option('--status', t('cmd.deployStatus'))
   .action(async (options: { message?: string; region?: string; yes?: boolean; status?: boolean }) => {
     if (options.status) {
       await deployStatusCommand();
       return;
     }
-    await deployCommand(options);
+    await deployCommand();
   });
 
 // ─── sxq upgrade ─────────────────────────────────────────
