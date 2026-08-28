@@ -196,6 +196,16 @@ export interface AttachmentTree {
   [name: string]: AttachmentTree | AttachmentMeta;
 }
 
+/** 保存清单时对应的 Git 工作树状态；非 Git 项目不写入。 */
+export interface GitSyncContext {
+  /** Git 工作树根目录，用于识别复制或错用的 .sxq 清单。 */
+  root: string;
+  /** detached HEAD 时为 null。 */
+  branch: string | null;
+  /** 保存清单时的 HEAD；尚无提交的 Git 仓库为 null。 */
+  head: string | null;
+}
+
 /** pull 后记录在 .sxq/attachments.json 的清单，push 合并时使用 */
 export interface AttachmentManifest {
   sessionId: string;
@@ -205,6 +215,8 @@ export interface AttachmentManifest {
   tree: AttachmentTree;
   /** pull 合并时写入了冲突标记、尚未确认解决的文件；push 只对这些文件做残留标记检查 */
   conflicts?: string[];
+  /** Git 项目用于防止跨分支/回退历史误推送；非 Git 项目为空。 */
+  git?: GitSyncContext;
 }
 
 /** supabaseExecuteMigration 请求参数（执行数据库迁移） */
@@ -280,6 +292,8 @@ export interface PageResult<T> {
 export interface ProjectConfig {
   sessionId: string;
   linkedAt: string;
+  /** Git 项目允许执行 sxq push 的分支，默认 main。 */
+  pushBranch?: string;
   /** link 时从服务端取回的会话信息快照 */
   session?: SessionInfo;
 }

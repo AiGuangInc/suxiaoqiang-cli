@@ -7,6 +7,7 @@ import type { GlobalConfig, ProjectConfig } from '../types/index.js';
 /** 项目本地元数据目录，config.json 存关联信息，后续附件版本等数据也存放于此 */
 const SXQ_DIR = '.sxq';
 const PROJECT_CONFIG_FILE = 'config.json';
+export const DEFAULT_PUSH_BRANCH = 'main';
 
 /** 全局配置存储 */
 const globalConf = new Conf<GlobalConfig>({
@@ -117,6 +118,10 @@ export async function getProjectConfig(cwd: string = process.cwd()): Promise<Pro
   }
   const content = await readFile(configPath, 'utf-8');
   return JSON.parse(content) as ProjectConfig;
+}
+
+export function getProjectPushBranch(config: ProjectConfig): string {
+  return config.pushBranch?.trim() || DEFAULT_PUSH_BRANCH;
 }
 
 export async function setProjectConfig(config: ProjectConfig, cwd: string = process.cwd()): Promise<void> {

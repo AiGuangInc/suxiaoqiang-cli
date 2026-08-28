@@ -74,7 +74,9 @@ program
   .command('push')
   .description(t('cmd.push'))
   .option('-m, --message <message>', t('cmd.pushMessage'))
-  .action(async (options: { message?: string }) => {
+  .option('-f, --force', t('cmd.pushForce'))
+  .option('-y, --yes', t('cmd.pushYes'))
+  .action(async (options: { message?: string; force?: boolean; yes?: boolean }) => {
     await pushCommand(options);
   });
 
@@ -135,31 +137,31 @@ config
   .description(t('cmd.configSet'))
   .argument('<key>', t('cmd.configKeyArg'))
   .argument('<value>', t('cmd.configValueArg'))
-  .action((key: string, value: string) => {
-    configSetCommand(key, value);
+  .action(async (key: string, value: string) => {
+    await configSetCommand(key, value);
   });
 
 config
   .command('get')
   .description(t('cmd.configGet'))
   .argument('<key>', t('cmd.configKeyArg'))
-  .action((key: string) => {
-    configGetCommand(key);
+  .action(async (key: string) => {
+    await configGetCommand(key);
   });
 
 config
   .command('unset')
   .description(t('cmd.configUnset'))
   .argument('<key>', t('cmd.configKeyArg'))
-  .action((key: string) => {
-    configUnsetCommand(key);
+  .action(async (key: string) => {
+    await configUnsetCommand(key);
   });
 
 config
   .command('list')
   .description(t('cmd.configList'))
-  .action(() => {
-    configListCommand();
+  .action(async () => {
+    await configListCommand();
   });
 
 // ─── sxq db ──────────────────────────────────────────────

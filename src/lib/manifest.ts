@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { getSxqDir } from './config.js';
+import { getGitContext } from './git.js';
 import type { AttachmentManifest, AttachmentMeta, AttachmentTree, SessionAttachment } from '../types/index.js';
 
 const MANIFEST_FILE = 'attachments.json';
@@ -82,7 +83,10 @@ export function flattenTree(tree: AttachmentTree, prefix = ''): Map<string, Atta
 
 export async function saveManifest(manifest: AttachmentManifest, cwd: string = process.cwd()): Promise<void> {
   await mkdir(getSxqDir(cwd), { recursive: true });
-  await writeFile(getManifestPath(cwd), JSON.stringify(manifest, null, 2), 'utf-8');
+  const git = await getGitContext(cwd);
+  const { git: _previousGit, ...rest } = manifest;
+  const persisted = git ? { ...rest, git } : rest;
+  await writeFile(getManifestPath(cwd), JSON.stringify(persisted, null, 2), 'utf-8');
 }
 
 export async function loadManifest(cwd: string = process.cwd()): Promise<AttachmentManifest | null> {

@@ -3,7 +3,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '../lib/logger.js';
-import { getProjectConfig } from '../lib/config.js';
+import { getProjectConfig, getProjectPushBranch } from '../lib/config.js';
 import { batchManualModifyForSync, querySessionAttachmentsForSync } from '../lib/api.js';
 import { buildAttachmentTree, flattenTree, hashContent, loadManifest, saveManifest } from '../lib/manifest.js';
 import { runPull } from './pull.js';
@@ -11,7 +11,9 @@ import { MIGRATIONS_DIR } from './db/push.js';
 import { debug, isDebug } from '../lib/debug.js';
 import { loadSyncIgnore, type SyncIgnore } from '../lib/ignore.js';
 import { t } from '../lib/i18n.js';
-import type { ManualModifyFile } from '../types/index.js';
+import { confirm } from '../lib/prompt.js';
+import { getGitContext, getGitOperation, hasGitMetadata, isGitAncestor } from '../lib/git.js';
+import type { AttachmentMeta, GitSyncContext, ManualModifyFile } from '../types/index.js';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -28,6 +30,138 @@ function isProtectedPath(path: string): boolean {
 
 export interface PushOptions {
   message?: string;
+  /** 忽略 Git 推送分支限制；其他 Git 安全检查仍然生效。 */
+  force?: boolean;
+  /** 展示清单后直接确认推送。 */
+  yes?: boolean;
+}
+
+interface PushPlan {
+  added: string[];
+  modified: string[];
+  deleted: string[];
+}
+
+async function validateGitPush(
+  configuredBranch: string,
+  manifestGit: GitSyncContext | undefined,
+  force: boolean
+): Promise<void> {
+  const current = await getGitContext();
+  if (!current) {
+    if (hasGitMetadata()) throw new Error(t('push.gitInspectFailed'));
+    return;
+  }
+
+  const operation = await getGitOperation();
+  if (operation) throw new Error(t('push.gitOperation', { operation }));
+
+  if (!current.branch) {
+    if (!force) throw new Error(t('push.gitDetached'));
+    logger.warn(t('push.gitBranchForced', { current: 'detached HEAD', configured: configuredBranch }));
+  } else if (current.branch !== configuredBranch) {
+    if (!force) {
+      throw new Error(
+        t('push.gitWrongBranch', { current: current.branch, configured: configuredBranch })
+      );
+    }
+    logger.warn(t('push.gitBranchForced', { current: current.branch, configured: configuredBranch }));
+  }
+
+  if (!manifestGit) {
+    if (!force && current.branch === configuredBranch) {
+      logger.info(t('push.gitValidated', { current: current.branch, configured: configuredBranch }));
+    }
+    return;
+  }
+  if (manifestGit.root !== current.root) {
+    throw new Error(t('push.gitRootChanged'));
+  }
+  if (manifestGit.branch !== current.branch) {
+    if (!force) {
+      throw new Error(
+        t('push.gitManifestBranchChanged', {
+          previous: manifestGit.branch ?? 'detached HEAD',
+          current: current.branch ?? 'detached HEAD',
+        })
+      );
+    }
+    logger.warn(
+      t('push.gitManifestBranchForced', {
+        previous: manifestGit.branch ?? 'detached HEAD',
+        current: current.branch ?? 'detached HEAD',
+      })
+    );
+    return;
+  }
+
+  if (
+    current.branch &&
+    manifestGit.head &&
+    current.head &&
+    manifestGit.head !== current.head &&
+    !(await isGitAncestor(manifestGit.head, current.head))
+  ) {
+    throw new Error(t('push.gitHistoryChanged'));
+  }
+
+  if (!force && current.branch === configuredBranch) {
+    logger.info(t('push.gitValidated', { current: current.branch, configured: configuredBranch }));
+  }
+}
+
+function buildPushPlan(
+  files: ManualModifyFile[],
+  baseline: Map<string, AttachmentMeta>
+): PushPlan {
+  const plan: PushPlan = { added: [], modified: [], deleted: [] };
+  for (const file of files) {
+    if (file.deleted) {
+      plan.deleted.push(file.filename);
+    } else if (baseline.has(file.filename)) {
+      plan.modified.push(file.filename);
+    } else {
+      plan.added.push(file.filename);
+    }
+  }
+  plan.added.sort();
+  plan.modified.sort();
+  plan.deleted.sort();
+  return plan;
+}
+
+function printPushPlan(plan: PushPlan): void {
+  logger.info(
+    t('push.planHeader', {
+      added: plan.added.length,
+      modified: plan.modified.length,
+      deleted: plan.deleted.length,
+    })
+  );
+  for (const path of plan.added) logger.dim(`  + ${path}`);
+  for (const path of plan.modified) logger.dim(`  M ${path}`);
+  for (const path of plan.deleted) logger.dim(`  D ${path}`);
+}
+
+async function validateLocalPlan(
+  originalPaths: string[],
+  files: ManualModifyFile[],
+  ig: SyncIgnore
+): Promise<void> {
+  const currentPaths = await collectLocalFiles(process.cwd(), ig);
+  const originalKey = [...originalPaths].sort().join('\n');
+  const currentKey = currentPaths.sort().join('\n');
+  if (originalKey !== currentKey) throw new Error(t('push.localChangedAfterConfirm'));
+
+  for (const file of files) {
+    const path = join(process.cwd(), file.filename);
+    if (file.deleted) {
+      if (existsSync(path)) throw new Error(t('push.localChangedAfterConfirm'));
+      continue;
+    }
+    const current = await readFile(path, 'utf-8');
+    if (current !== file.content) throw new Error(t('push.localChangedAfterConfirm'));
+  }
 }
 
 /** 递归收集本地文件相对路径（posix 风格，与远端附件 name 对齐），按 .gitignore + 内置规则过滤 */
@@ -70,8 +204,16 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
   const spinner = ora(t('push.checking')).start();
 
   try {
+    // Git 项目在任何 pull 写盘前先做分支/工作树校验；非 Git 项目完全跳过。
+    const initialManifest = await loadManifest();
+    await validateGitPush(
+      getProjectPushBranch(config),
+      initialManifest?.git,
+      options.force ?? false
+    );
+
     // ── 1. 先拉取远程变更，有冲突则中断 ──────────────────
-    const pullResult = await runPull(sessionId, spinner);
+    const pullResult = await runPull(sessionId, spinner, { showGitNotice: false });
     if (pullResult.conflicted.length > 0) {
       spinner.fail(t('push.abortConflict'));
       logger.warn(t('push.conflictMarkerHeader'));
@@ -182,8 +324,22 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       return;
     }
 
-    // ── 3. 无冲突，批量推送 ─────────────────────────────
-    spinner.text = t('push.pushing', { count: toPush.length });
+    // ── 3. 展示最终推送清单并确认 ───────────────────────
+    spinner.stop();
+    warnBlockedMigrations();
+    const plan = buildPushPlan(toPush, baseline);
+    printPushPlan(plan);
+    if (!options.yes) {
+      const confirmed = await confirm(t('push.confirm'), t('push.confirmHint'));
+      if (!confirmed) {
+        logger.info(t('push.cancelled'));
+        return;
+      }
+    }
+    await validateLocalPlan(localPaths, toPush, ig);
+
+    // ── 4. 无冲突且已确认，批量推送 ─────────────────────
+    spinner.start(t('push.pushing', { count: toPush.length }));
     const modifyResult = await batchManualModifyForSync({
       sessionId,
       withSnapshot: true,
@@ -195,7 +351,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       throw new Error(t('push.snapshotMissing'));
     }
 
-    // ── 4. 推送成功，回查新 rowKey 并更新清单 ────────────
+    // ── 5. 推送成功，回查新 rowKey 并更新清单 ────────────
     spinner.text = t('push.updatingManifest');
     // 清单与同步范围保持一致：忽略的远端文件不进清单
     const refreshResult = await querySessionAttachmentsForSync({ sessionId, withContent: false });
@@ -222,8 +378,6 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       const suffix = file.deleted ? t('push.deletedSuffix') : '';
       logger.dim(`  ${file.filename}${suffix}`);
     }
-    warnBlockedMigrations();
-
     if (skippedBinary.length > 0) {
       logger.warn(t('push.skippedBinaryHeader'));
       for (const name of skippedBinary) logger.dim(`  ${name}`);
