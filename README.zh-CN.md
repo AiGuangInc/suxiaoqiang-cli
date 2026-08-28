@@ -67,16 +67,41 @@ sxq deploy                  # 在浏览器中打开项目发布确认页
 | `sxq config set\|get\|unset\|list` | 管理配置。支持项：`host`、`lang`（`zh` / `en`）、项目级 `push-branch`（默认 `main`）。 |
 | `sxq upgrade` | 从 npm 升级 CLI 到最新版本。 |
 
-## Claude Code 插件
+## Claude Code 与 Codex 插件
 
-本仓库同时是一个 Claude Code 插件市场。安装 `suxiaoqiang-cli` skill 后，Claude Code 就知道如何正确使用 `sxq`（工作流、非交互参数、安全规则）：
+本仓库为 Claude Code 和 Codex 提供同一份 `suxiaoqiang-cli` skill。插件负责教会智能体安全使用 `sxq`；CLI 本体仍需通过 npm 安装。
 
+### Claude Code
+
+安装：
+
+```bash
+claude plugin marketplace add AiGuangInc/suxiaoqiang-cli
+claude plugin install suxiaoqiang-cli@suxiaoqiang
 ```
-/plugin marketplace add AiGuangInc/suxiaoqiang-cli
-/plugin install suxiaoqiang-cli@suxiaoqiang
+
+更新到最新版 skill，然后重启 Claude Code：
+
+```bash
+claude plugin marketplace update suxiaoqiang
+claude plugin update suxiaoqiang-cli@suxiaoqiang
 ```
 
-插件只是教会 Claude 使用 CLI——CLI 本体仍需通过 npm 安装（见上文）。
+### Codex
+
+安装：
+
+```bash
+codex plugin marketplace add AiGuangInc/suxiaoqiang-cli --ref main
+codex plugin add suxiaoqiang-cli@suxiaoqiang
+```
+
+刷新 marketplace、重新安装最新版插件，然后新建任务使 skill 生效：
+
+```bash
+codex plugin marketplace upgrade suxiaoqiang
+codex plugin add suxiaoqiang-cli@suxiaoqiang
+```
 
 ## 数据库迁移
 

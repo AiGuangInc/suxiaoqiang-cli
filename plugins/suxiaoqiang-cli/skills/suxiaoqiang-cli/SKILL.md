@@ -11,9 +11,9 @@ description: >
 # suxiaoqiang-cli (sxq)
 
 `sxq` syncs a Superun project (identified by a `sessionId`) with a local directory, drives the
-preview pipeline, and opens the browser for production release confirmation. In agent environments,
-use non-interactive flags only after the user has authorized the exact operation. In particular,
-never add `-y` to `sxq push` before reviewing its add/modify/delete plan.
+preview pipeline, and opens the browser for production release confirmation. In Claude Code and
+Codex environments, use non-interactive flags only after the user has authorized the exact
+operation. In particular, never add `-y` to `sxq push` before reviewing its add/modify/delete plan.
 
 ## Prerequisites
 

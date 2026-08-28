@@ -67,16 +67,41 @@ sxq deploy                  # opens the project release confirmation page in you
 | `sxq config set\|get\|unset\|list` | Manage config. Keys: `host`, `lang` (`zh` / `en`), and project-level `push-branch` (default `main`). |
 | `sxq upgrade` | Upgrade the CLI to the latest version from npm. |
 
-## Claude Code plugin
+## Claude Code and Codex plugins
 
-This repo doubles as a Claude Code plugin marketplace. Install the `suxiaoqiang-cli` skill so Claude Code knows how to drive `sxq` (workflows, non-interactive flags, safety rules):
+This repository publishes one shared `suxiaoqiang-cli` skill for both Claude Code and Codex. The plugin teaches the agent how to drive `sxq` safely; the CLI itself must still be installed from npm.
 
+### Claude Code
+
+Install:
+
+```bash
+claude plugin marketplace add AiGuangInc/suxiaoqiang-cli
+claude plugin install suxiaoqiang-cli@suxiaoqiang
 ```
-/plugin marketplace add AiGuangInc/suxiaoqiang-cli
-/plugin install suxiaoqiang-cli@suxiaoqiang
+
+Update to the latest skill and restart Claude Code:
+
+```bash
+claude plugin marketplace update suxiaoqiang
+claude plugin update suxiaoqiang-cli@suxiaoqiang
 ```
 
-The plugin teaches Claude how to use the CLI — the CLI itself still needs to be installed via npm (see above).
+### Codex
+
+Install:
+
+```bash
+codex plugin marketplace add AiGuangInc/suxiaoqiang-cli --ref main
+codex plugin add suxiaoqiang-cli@suxiaoqiang
+```
+
+Refresh the marketplace, reinstall the latest plugin version, and start a new task:
+
+```bash
+codex plugin marketplace upgrade suxiaoqiang
+codex plugin add suxiaoqiang-cli@suxiaoqiang
+```
 
 ## Database migrations
 

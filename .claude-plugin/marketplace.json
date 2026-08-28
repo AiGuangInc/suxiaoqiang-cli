@@ -7,8 +7,8 @@
   "plugins": [
     {
       "name": "suxiaoqiang-cli",
-      "source": "./",
-      "description": "superun 应用管理 cli (sxq): sync, preview and release Superun vibe coding projects",
+      "source": "./plugins/suxiaoqiang-cli",
+      "description": "superun 应用管理 cli (sxq): sync, preview, migrate and release Superun vibe coding projects",
       "author": {
         "name": "AiGuangInc"
       }

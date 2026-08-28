@@ -1,0 +1,20 @@
+{
+  "name": "suxiaoqiang",
+  "interface": {
+    "displayName": "Suxiaoqiang"
+  },
+  "plugins": [
+    {
+      "name": "suxiaoqiang-cli",
+      "source": {
+        "source": "local",
+        "path": "./plugins/suxiaoqiang-cli"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

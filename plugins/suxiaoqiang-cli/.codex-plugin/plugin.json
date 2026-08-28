@@ -1,0 +1,32 @@
+{
+  "name": "suxiaoqiang-cli",
+  "version": "1.1.0",
+  "description": "Use sxq to sync, preview, migrate, and release Superun projects safely",
+  "author": {
+    "name": "AiGuangInc",
+    "url": "https://github.com/AiGuangInc"
+  },
+  "homepage": "https://github.com/AiGuangInc/suxiaoqiang-cli",
+  "repository": "https://github.com/AiGuangInc/suxiaoqiang-cli",
+  "license": "Apache-2.0",
+  "keywords": [
+    "superun",
+    "sxq",
+    "cli",
+    "deployment",
+    "database-migrations"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Suxiaoqiang CLI",
+    "shortDescription": "Operate Superun projects safely with sxq.",
+    "longDescription": "Guides Codex to sync, preview, migrate, and release Superun projects using the sxq CLI and its safety rules.",
+    "developerName": "AiGuangInc",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": "Use sxq to safely work with this Superun project."
+  }
+}
