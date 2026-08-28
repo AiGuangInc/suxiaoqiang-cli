@@ -2,7 +2,7 @@ import { getApiBase, getToken, getServiceChain, getTsid, getPrivateToken } from 
 import { logger } from './logger.js';
 import { debug, isDebug } from './debug.js';
 import { t } from './i18n.js';
-import type { ApiResponse, BatchManualModifyParams, BatchManualModifySyncResult, CanDownloadCodeParams, DeployEdgeFunctionParams, DeployEdgeFunctionResult, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, PublishNewLogParams, PublishNewLogResult, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachmentsSyncResult, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
+import type { ApiResponse, BatchManualModifyParams, BatchManualModifySyncResult, CanDownloadCodeParams, DeployEdgeFunctionParams, DeployEdgeFunctionResult, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachmentsSyncResult, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
 
 /** 解析 JSON 响应；网关/登录页拦截时服务端会返回 HTML，给出可操作的报错而非 JSON 解析异常 */
 async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
@@ -223,15 +223,6 @@ export async function deployEdgeFunction(
   return response.data;
 }
 
-/** 正式上线（发布新版本） */
-export async function publishNewLog(params: PublishNewLogParams): Promise<PublishNewLogResult> {
-  const response = await request<PublishNewLogResult>(
-    '/api/uxa-center/agent/AgentCommand/publishNewLogV2',
-    params as unknown as Record<string, unknown>
-  );
-  return response.data;
-}
-
 /** 执行 Supabase 数据库迁移（成功后服务端会自动把迁移文件写入会话附件） */
 export async function supabaseExecuteMigration(
   params: SupabaseMigrationParams
@@ -254,7 +245,7 @@ export async function pageQuerySessionByLastId(
   return response.data;
 }
 
-/** 查询发布版本信息（未发布版本 + 已发布历史），上线后轮询 deployStatus 用 */
+/** 查询发布版本信息（未发布版本 + 已发布历史） */
 export async function queryPublishLogInfo(sessionId: string): Promise<PublishLogInfo> {
   const response = await request<PublishLogInfo>(
     '/api/uxa-center/agent/AgentQuery/queryPublishLogInfo',
