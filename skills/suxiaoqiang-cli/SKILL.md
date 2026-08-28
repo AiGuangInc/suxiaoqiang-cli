@@ -11,10 +11,9 @@ description: >
 # suxiaoqiang-cli (sxq)
 
 `sxq` syncs a Superun project (identified by a `sessionId`) with a local directory, drives the
-preview pipeline, and opens the browser for production release confirmation. All commands run
-non-interactively when needed — **always prefer
-the non-interactive forms below**; interactive prompts hang in agent environments (the CLI
-fails fast on non-TTY with a hint, but don't rely on prompts).
+preview pipeline, and opens the browser for production release confirmation. In agent environments,
+use non-interactive flags only after the user has authorized the exact operation. In particular,
+never add `-y` to `sxq push` before reviewing its add/modify/delete plan.
 
 ## Prerequisites
 
@@ -62,6 +61,32 @@ sxq deploy --status         # read-only: pending/published versions + live URL
   project-level `push-branch` (defaults to `main`).
 - `--debug` on any command prints full request/response logs (tokens masked) — use it when
   diagnosing failures.
+
+## Git collaboration safety
+
+`.sxq/attachments.json` is a local synchronization baseline, not a Git index. The `.sxq/`
+directory is intentionally ignored by Git, so switching branches changes the working tree without
+changing that baseline. A file that is older, different, or absent on the new branch can therefore
+look like an intended modification or deletion even when nobody edited or removed it manually.
+
+- Run `sxq pull` and `sxq push` only from the branch intended to sync with Superun. Git projects
+  allow pushes only from the project-level `push-branch` (`main` by default). Configure a different
+  branch with `sxq config set push-branch <branch>`.
+- Prefer a separate Git worktree for each concurrently used branch. Link and pull each worktree
+  separately so every worktree has its own `.sxq` baseline. Never copy `.sxq` between repositories,
+  worktrees, branches, or partial source directories, and never force-add it to Git.
+- After switching branches in a directory that already contains `.sxq`, do not push immediately.
+  Return to the configured push branch, run `sxq pull`, inspect `git status` / `git diff`, and review
+  the complete push plan. Treat unexpected bulk modifications or deletions as a stale/mismatched
+  working tree and stop instead of confirming.
+- `sxq push -f` bypasses only branch restrictions; it does not prove that the working tree matches
+  the user's intent. Use it only when the user explicitly authorizes pushing from that exact branch
+  after reviewing the plan. Do not use it to bypass reset/rebase/history or worktree warnings.
+- `sxq push -y` still prints the plan but skips the prompt. Use it only after the exact added,
+  modified, and deleted paths have been reviewed and authorized. Never combine `-f -y` as a generic
+  retry for a failed push.
+- Non-Git directories skip Git-specific checks, but the push plan remains authoritative: stop on
+  surprising changes and confirm only the intended files.
 
 ## Database migrations (`sxq db push`)
 
