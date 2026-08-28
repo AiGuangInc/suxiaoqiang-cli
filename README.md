@@ -57,13 +57,13 @@ sxq deploy                  # opens the project release confirmation page in you
 | --- | --- |
 | `sxq login [-y] [--token <token>]` | Log in via browser authorization, or directly with an existing token (validated first). |
 | `sxq link <sessionId> [-y]` | Link the current directory to a project. Verifies the session belongs to your account. |
-| `sxq pull` | Pull remote files. Incremental after the first pull, with three-way merge; conflicts get git-style `<<<<<<<` markers. |
+| `sxq pull [-f]` | Pull remote files. Incremental after the first pull, with three-way merge; conflicts get git-style `<<<<<<<` markers. Git projects only operate on the configured branch by default. |
 | `sxq push [-f] [-y] [-m <msg>]` | Pull first, show the complete add/modify/delete plan, then push after confirmation. Git projects only push from the configured branch by default; `-f` ignores branch restrictions and `-y` skips confirmation. |
 | `sxq preview [front\|ef]` | Update the preview environment; defaults to `front`, while `ef` deploys Edge Functions only. |
 | `sxq publish` | Compatibility alias for `sxq preview front`. |
 | `sxq deploy` | Open the linked project's release confirmation page. The CLI does not release directly. |
 | `sxq deploy --status` | Show pending / published versions and the live URL without releasing. |
-| `sxq db push [-m <msg>]` | Execute new database migrations under `supabase/migrations/`; `-m` supplies the migration note. |
+| `sxq db push [-f] [-m <msg>]` | Execute new database migrations under `supabase/migrations/`; Git projects only operate on the configured branch by default. |
 | `sxq config set\|get\|unset\|list` | Manage config. Keys: `host`, `lang` (`zh` / `en`), and project-level `push-branch` (default `main`). |
 | `sxq upgrade` | Upgrade the CLI to the latest version from npm. |
 
@@ -86,12 +86,12 @@ Create a migration file under `supabase/migrations/` named `<digits>_<memo>.sql`
 sxq db push -m "add user profile tables"
 ```
 
-It pulls first and finds migrations that don't exist remotely yet. If the pending batch contains duplicate timestamps, it aborts before executing any SQL; otherwise it executes migrations one by one in timestamp order, stopping at the first failure and printing the error. The server stores each successful migration as a project attachment automatically, so **don't push migration files with `sxq push`** (the CLI blocks them).
+It pulls first and finds migrations that don't exist remotely yet. If a pending migration reuses a timestamp from either another pending migration or an existing remote migration, it aborts before executing any SQL; otherwise it executes migrations one by one in timestamp order, stopping at the first failure and printing the error. The server stores each successful migration as a project attachment automatically, so **don't push migration files with `sxq push`** (the CLI blocks them).
 
 ## Notes
 
 - **`.gitignore` support**: `pull` / `push` respect your project's `.gitignore` (plus built-in ignores like `node_modules`, `dist`, `.git`). Ignored files are never synced.
-- **Git push guard**: Git projects only push from the configured `push-branch` and reject merge/rebase intermediate states or rewritten history. Non-Git projects skip these checks. Use `sxq config set push-branch master` to change the project branch; `-f` only ignores branch restrictions.
+- **Git local-file guard**: `pull`, `push`, and `db push` only operate on the configured `push-branch` and reject merge/rebase intermediate states, mismatched worktrees, or rewritten history. Non-Git projects skip these checks. Use `sxq config set push-branch master` to change the project branch; `-f` only ignores branch restrictions.
 - **Push plan confirmation**: `push` lists every added, modified, and deleted file and asks for `y/N` confirmation by default. `-y` means the list has been reviewed and accepted.
 - **Non-interactive / CI / AI agents**: terminal confirmation prompts have a `-y` flag and fail fast outside a TTY. Production release confirmation always happens in the browser; `sxq deploy` cannot bypass it.
 - **Language**: auto-detected from your locale; override with `sxq config set lang en`.

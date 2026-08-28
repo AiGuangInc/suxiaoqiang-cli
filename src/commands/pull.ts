@@ -11,7 +11,7 @@ import { debug, isDebug } from '../lib/debug.js';
 import { loadSyncIgnore, type SyncIgnore } from '../lib/ignore.js';
 import { t } from '../lib/i18n.js';
 import type { SessionAttachment } from '../types/index.js';
-import { getGitContext } from '../lib/git.js';
+import { validateGitSync } from '../lib/git.js';
 
 /** 本地元数据目录不接受远程写入 */
 function isProtectedPath(name: string): boolean {
@@ -39,32 +39,22 @@ async function readLocal(name: string): Promise<string | null> {
 export interface PullResult {
   conflicted: string[];
   snapshotId: string | null;
+  /** 本次服务端查询返回的完整附件路径，不受本地 .gitignore 过滤。 */
+  remoteFiles: string[];
 }
 
 export interface RunPullOptions {
-  /** push 已单独展示 Git 校验结果时关闭重复提示。 */
-  showGitNotice?: boolean;
-}
-
-async function showGitBranchNotice(spinner: Ora): Promise<void> {
-  const [git, config] = await Promise.all([getGitContext(), getProjectConfig()]);
-  if (!git || !config) return;
-
-  const configured = getProjectPushBranch(config);
-  const current = git.branch ?? 'detached HEAD';
-  spinner.stop();
-  if (git.branch === configured) {
-    logger.info(t('pull.gitBranchReady', { current, configured }));
-  } else {
-    logger.warn(t('pull.gitBranchMismatch', { current, configured }));
-  }
-  spinner.start();
+  /** 用于 -f 提示中的具体子命令。 */
+  gitCommand?: string;
+  /** 仅忽略 Git 分支限制；其他 Git 安全检查仍然生效。 */
+  gitForce?: boolean;
 }
 
 /** 全量拉取：查询时携带内容，写入全部文件（.gitignore 命中的不写盘、不进清单） */
 async function fullPull(sessionId: string, spinner: Ora, ig: SyncIgnore): Promise<PullResult> {
   const result = await querySessionAttachmentsForSync({ sessionId, withContent: true });
   const attachments = result.attachments ?? [];
+  const remoteFiles = attachments.flatMap((file) => (file.name ? [file.name] : []));
   debug('Attachments received', attachments?.length ?? 0);
 
   if (attachments.length === 0) {
@@ -76,7 +66,7 @@ async function fullPull(sessionId: string, spinner: Ora, ig: SyncIgnore): Promis
       conflicts: [],
     });
     spinner.info(t('pull.noRemoteFiles'));
-    return { conflicted: [], snapshotId: result.snapshotId };
+    return { conflicted: [], snapshotId: result.snapshotId, remoteFiles };
   }
 
   spinner.text = t('pull.writing', { count: attachments.length });
@@ -109,7 +99,7 @@ async function fullPull(sessionId: string, spinner: Ora, ig: SyncIgnore): Promis
   debug('Manifest saved', getManifestPath());
 
   spinner.succeed(t('pull.fullDone', { written, skipped }));
-  return { conflicted: [], snapshotId: result.snapshotId };
+  return { conflicted: [], snapshotId: result.snapshotId, remoteFiles };
 }
 
 /**
@@ -122,6 +112,9 @@ async function incrementalPull(sessionId: string, spinner: Ora, ig: SyncIgnore):
 
   // .gitignore 命中的远端文件不参与同步（不写盘、不进清单、不报"远程已删除"）
   const result = await querySessionAttachmentsForSync({ sessionId, withContent: false });
+  const remoteFiles = (result.attachments ?? []).flatMap((file) =>
+    file.name ? [file.name] : []
+  );
   const list = (result.attachments ?? []).filter(
     (f) => !f.name || !ig.ignores(f.name)
   );
@@ -243,7 +236,7 @@ async function incrementalPull(sessionId: string, spinner: Ora, ig: SyncIgnore):
     for (const path of removed) logger.dim(`  ${path}`);
   }
 
-  return { conflicted, snapshotId: result.snapshotId };
+  return { conflicted, snapshotId: result.snapshotId, remoteFiles };
 }
 
 /** 执行一次拉取（自动判断全量/增量），供 pull 命令和 push 前置检查复用 */
@@ -252,7 +245,16 @@ export async function runPull(
   spinner: Ora,
   options: RunPullOptions = {}
 ): Promise<PullResult> {
-  if (options.showGitNotice !== false) await showGitBranchNotice(spinner);
+  const [config, manifest] = await Promise.all([getProjectConfig(), loadManifest()]);
+  if (config) {
+    await validateGitSync({
+      configuredBranch: getProjectPushBranch(config),
+      manifestGit: manifest?.git,
+      force: options.gitForce ?? false,
+      command: options.gitCommand ?? 'pull',
+    });
+  }
+
   spinner.text = t('pull.checkingSyncPermission');
   const syncable = await canSyncCode({ sessionId });
   debug('canSyncCode', syncable);
@@ -260,7 +262,6 @@ export async function runPull(
     throw new Error(t('common.codeDownloadDenied'));
   }
 
-  const manifest = await loadManifest();
   // 清单不存在或 session 不匹配（重新 link 过）时走全量
   const isFull = !manifest || manifest.sessionId !== sessionId;
   debug('Pull session', sessionId);
@@ -275,7 +276,11 @@ export async function runPull(
   return incrementalPull(sessionId, spinner, ig);
 }
 
-export async function pullCommand(): Promise<void> {
+export interface PullOptions {
+  force?: boolean;
+}
+
+export async function pullCommand(options: PullOptions = {}): Promise<void> {
   const config = await getProjectConfig();
   if (!config) {
     logger.error(t('common.notLinked'));
@@ -285,7 +290,10 @@ export async function pullCommand(): Promise<void> {
   const spinner = ora(t('pull.pulling')).start();
 
   try {
-    await runPull(config.sessionId, spinner);
+    await runPull(config.sessionId, spinner, {
+      gitCommand: 'pull',
+      gitForce: options.force ?? false,
+    });
   } catch (error) {
     spinner.fail(t('pull.failed'));
     logger.error((error as Error).message);

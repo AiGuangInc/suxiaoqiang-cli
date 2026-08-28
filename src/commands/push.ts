@@ -3,7 +3,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '../lib/logger.js';
-import { getProjectConfig, getProjectPushBranch } from '../lib/config.js';
+import { getProjectConfig } from '../lib/config.js';
 import { batchManualModifyForSync, querySessionAttachmentsForSync } from '../lib/api.js';
 import { buildAttachmentTree, flattenTree, hashContent, loadManifest, saveManifest } from '../lib/manifest.js';
 import { runPull } from './pull.js';
@@ -12,8 +12,7 @@ import { debug, isDebug } from '../lib/debug.js';
 import { loadSyncIgnore, type SyncIgnore } from '../lib/ignore.js';
 import { t } from '../lib/i18n.js';
 import { confirm } from '../lib/prompt.js';
-import { getGitContext, getGitOperation, hasGitMetadata, isGitAncestor } from '../lib/git.js';
-import type { AttachmentMeta, GitSyncContext, ManualModifyFile } from '../types/index.js';
+import type { AttachmentMeta, ManualModifyFile } from '../types/index.js';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -40,74 +39,6 @@ interface PushPlan {
   added: string[];
   modified: string[];
   deleted: string[];
-}
-
-async function validateGitPush(
-  configuredBranch: string,
-  manifestGit: GitSyncContext | undefined,
-  force: boolean
-): Promise<void> {
-  const current = await getGitContext();
-  if (!current) {
-    if (hasGitMetadata()) throw new Error(t('push.gitInspectFailed'));
-    return;
-  }
-
-  const operation = await getGitOperation();
-  if (operation) throw new Error(t('push.gitOperation', { operation }));
-
-  if (!current.branch) {
-    if (!force) throw new Error(t('push.gitDetached'));
-    logger.warn(t('push.gitBranchForced', { current: 'detached HEAD', configured: configuredBranch }));
-  } else if (current.branch !== configuredBranch) {
-    if (!force) {
-      throw new Error(
-        t('push.gitWrongBranch', { current: current.branch, configured: configuredBranch })
-      );
-    }
-    logger.warn(t('push.gitBranchForced', { current: current.branch, configured: configuredBranch }));
-  }
-
-  if (!manifestGit) {
-    if (!force && current.branch === configuredBranch) {
-      logger.info(t('push.gitValidated', { current: current.branch, configured: configuredBranch }));
-    }
-    return;
-  }
-  if (manifestGit.root !== current.root) {
-    throw new Error(t('push.gitRootChanged'));
-  }
-  if (manifestGit.branch !== current.branch) {
-    if (!force) {
-      throw new Error(
-        t('push.gitManifestBranchChanged', {
-          previous: manifestGit.branch ?? 'detached HEAD',
-          current: current.branch ?? 'detached HEAD',
-        })
-      );
-    }
-    logger.warn(
-      t('push.gitManifestBranchForced', {
-        previous: manifestGit.branch ?? 'detached HEAD',
-        current: current.branch ?? 'detached HEAD',
-      })
-    );
-    return;
-  }
-
-  if (
-    current.branch &&
-    manifestGit.head &&
-    current.head &&
-    manifestGit.head !== current.head &&
-    !(await isGitAncestor(manifestGit.head, current.head))
-  ) {
-    throw new Error(t('push.gitHistoryChanged'));
-  }
-
-  if (!force && current.branch === configuredBranch) {
-    logger.info(t('push.gitValidated', { current: current.branch, configured: configuredBranch }));
-  }
 }
 
 function buildPushPlan(
@@ -204,16 +135,11 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
   const spinner = ora(t('push.checking')).start();
 
   try {
-    // Git 项目在任何 pull 写盘前先做分支/工作树校验；非 Git 项目完全跳过。
-    const initialManifest = await loadManifest();
-    await validateGitPush(
-      getProjectPushBranch(config),
-      initialManifest?.git,
-      options.force ?? false
-    );
-
     // ── 1. 先拉取远程变更，有冲突则中断 ──────────────────
-    const pullResult = await runPull(sessionId, spinner, { showGitNotice: false });
+    const pullResult = await runPull(sessionId, spinner, {
+      gitCommand: 'push',
+      gitForce: options.force ?? false,
+    });
     if (pullResult.conflicted.length > 0) {
       spinner.fail(t('push.abortConflict'));
       logger.warn(t('push.conflictMarkerHeader'));

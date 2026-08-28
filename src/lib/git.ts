@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
+import { logger } from './logger.js';
+import { t } from './i18n.js';
 import type { GitSyncContext } from '../types/index.js';
 
 interface GitResult {
@@ -76,4 +78,93 @@ export async function isGitAncestor(
 ): Promise<boolean> {
   const result = await runGit(['merge-base', '--is-ancestor', ancestor, descendant], cwd);
   return result.code === 0;
+}
+
+export interface GitSyncValidationOptions {
+  configuredBranch: string;
+  manifestGit?: GitSyncContext;
+  /** 仅忽略 detached HEAD、配置分支和清单分支限制。 */
+  force?: boolean;
+  /** 用于生成可直接执行的 -f 提示，如 push、pull、db push。 */
+  command: string;
+}
+
+/**
+ * 所有会读取、写入或依据本地项目文件执行的命令共用的 Git 安全门禁。
+ * 非 Git 目录跳过；Git 元数据损坏、操作中间态、跨 worktree 和历史改写始终拒绝。
+ */
+export async function validateGitSync(
+  options: GitSyncValidationOptions
+): Promise<void> {
+  const { configuredBranch, manifestGit, force = false, command } = options;
+  const current = await getGitContext();
+  if (!current) {
+    if (hasGitMetadata()) throw new Error(t('git.inspectFailed'));
+    return;
+  }
+
+  const operation = await getGitOperation();
+  if (operation) throw new Error(t('git.operation', { operation }));
+
+  if (!current.branch) {
+    if (!force) throw new Error(t('git.detached', { command }));
+    logger.warn(
+      t('git.branchForced', { current: 'detached HEAD', configured: configuredBranch })
+    );
+  } else if (current.branch !== configuredBranch) {
+    if (!force) {
+      throw new Error(
+        t('git.wrongBranch', {
+          current: current.branch,
+          configured: configuredBranch,
+          command,
+        })
+      );
+    }
+    logger.warn(
+      t('git.branchForced', { current: current.branch, configured: configuredBranch })
+    );
+  }
+
+  if (!manifestGit) {
+    if (!force && current.branch === configuredBranch) {
+      logger.info(t('git.validated', { current: current.branch, configured: configuredBranch }));
+    }
+    return;
+  }
+  if (manifestGit.root !== current.root) {
+    throw new Error(t('git.rootChanged'));
+  }
+  if (manifestGit.branch !== current.branch) {
+    if (!force) {
+      throw new Error(
+        t('git.manifestBranchChanged', {
+          previous: manifestGit.branch ?? 'detached HEAD',
+          current: current.branch ?? 'detached HEAD',
+          command,
+        })
+      );
+    }
+    logger.warn(
+      t('git.manifestBranchForced', {
+        previous: manifestGit.branch ?? 'detached HEAD',
+        current: current.branch ?? 'detached HEAD',
+      })
+    );
+    return;
+  }
+
+  if (
+    current.branch &&
+    manifestGit.head &&
+    current.head &&
+    manifestGit.head !== current.head &&
+    !(await isGitAncestor(manifestGit.head, current.head))
+  ) {
+    throw new Error(t('git.historyChanged'));
+  }
+
+  if (!force && current.branch === configuredBranch) {
+    logger.info(t('git.validated', { current: current.branch, configured: configuredBranch }));
+  }
 }

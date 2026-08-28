@@ -54,9 +54,10 @@ sxq deploy --status         # read-only: pending/published versions + live URL
 - `sxq deploy` — opens the linked project's release confirmation page in the user's browser.
   It never calls the release API directly. The user must review and confirm the release on the
   page; agents must not claim that a release happened just because this command exited 0.
-- `sxq pull` — local-only edits are preserved via three-way merge. In a Git project, run it on the
-  intended branch because it updates that worktree and records its Git context in `.sxq`.
-  Conflicted files are listed and contain git-style markers; resolve before pushing.
+- `sxq pull [-f]` — local-only edits are preserved via three-way merge. Git projects only operate
+  on the configured `push-branch` by default and apply the shared local-file safety checks before
+  writing the worktree. Conflicted files are listed and contain git-style markers; resolve before
+  pushing. `-f` only ignores configured/manifest branch restrictions.
 - `sxq config set|get|unset|list` — keys: `host` (API base URL), `lang` (`zh`/`en`), and the
   project-level `push-branch` (defaults to `main`).
 - `--debug` on any command prints full request/response logs (tokens masked) — use it when
@@ -69,9 +70,9 @@ directory is intentionally ignored by Git, so switching branches changes the wor
 changing that baseline. A file that is older, different, or absent on the new branch can therefore
 look like an intended modification or deletion even when nobody edited or removed it manually.
 
-- Run `sxq pull` and `sxq push` only from the branch intended to sync with Superun. Git projects
-  allow pushes only from the project-level `push-branch` (`main` by default). Configure a different
-  branch with `sxq config set push-branch <branch>`.
+- Run `sxq pull`, `sxq push`, and `sxq db push` only from the branch intended to sync with Superun.
+  Git projects allow all three local-file operations only from the project-level `push-branch`
+  (`main` by default). Configure a different branch with `sxq config set push-branch <branch>`.
 - Prefer a separate Git worktree for each concurrently used branch. Link and pull each worktree
   separately so every worktree has its own `.sxq` baseline. Never copy `.sxq` between repositories,
   worktrees, branches, or partial source directories, and never force-add it to Git.
@@ -79,9 +80,9 @@ look like an intended modification or deletion even when nobody edited or remove
   Return to the configured push branch, run `sxq pull`, inspect `git status` / `git diff`, and review
   the complete push plan. Treat unexpected bulk modifications or deletions as a stale/mismatched
   working tree and stop instead of confirming.
-- `sxq push -f` bypasses only branch restrictions; it does not prove that the working tree matches
-  the user's intent. Use it only when the user explicitly authorizes pushing from that exact branch
-  after reviewing the plan. Do not use it to bypass reset/rebase/history or worktree warnings.
+- `-f` on `pull`, `push`, or `db push` bypasses only branch restrictions; it does not prove that the
+  working tree matches the user's intent. Use it only when the user explicitly authorizes operating
+  on that exact branch. Do not use it to bypass reset/rebase/history or worktree warnings.
 - `sxq push -y` still prints the plan but skips the prompt. Use it only after the exact added,
   modified, and deleted paths have been reviewed and authorized. Never combine `-f -y` as a generic
   retry for a failed push.
@@ -105,10 +106,12 @@ Full flow:
    migration, inspect the existing filenames; if the timestamp already exists, generate a
    later one rather than reusing it.
 2. Run `sxq db push`. It will:
+   - apply the same Git local-file safety checks as `pull` and `push` before reading or writing
+     project files (`-f` only ignores configured/manifest branch restrictions);
    - pull remote changes first (aborts if there are merge conflicts — resolve, then rerun);
    - diff local files against the remote baseline to find migrations that are new;
-   - reject the entire pending batch before executing SQL if two new migrations have the same
-     timestamp, because their replay order would be ambiguous;
+   - reject the entire pending batch before executing SQL if a new migration reuses a timestamp
+     from another pending migration or an existing remote migration;
    - execute the new migrations one at a time, in ascending timestamp order;
    - stop at the first failure and print the server's error message. Migrations before the
      failed one are already applied; fix the failing file and rerun — only the remaining
