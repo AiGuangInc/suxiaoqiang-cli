@@ -22,13 +22,13 @@ export interface CanDownloadCodeParams {
 
 /** Session 附件项 */
 export interface SessionAttachment {
-  createdAt: string;
-  size: string;
+  createdAt?: string;
+  size?: string;
   name: string;
   type: string;
   rowKey: string;
-  content: string;
-  updatedAt: string;
+  content?: string | null;
+  updatedAt?: string;
 }
 
 /** 代码同步拉取结果。snapshotId 使用字符串，避免 JavaScript 丢失 Long 精度。 */
@@ -40,6 +40,8 @@ export interface SessionAttachmentsSyncResult {
 /** querySessionAttachments 请求参数 */
 export interface QuerySessionAttachmentsParams {
   sessionId: string;
+  /** 精确读取指定研发快照；为空时读取当前研发 HEAD。 */
+  snapshotId?: string;
   nameStartWith?: string;
   replyMessageId?: string;
   existFileNames?: string[];
@@ -80,7 +82,7 @@ export interface BatchManualModifyParams {
   withSnapshot: boolean;
   summary?: string;
   /** pull 时记录的远端快照 ID；服务端用它做乐观锁校验 */
-  preSnapshotId?: string;
+  preSnapshotId: string;
   files: ManualModifyFile[];
   accId?: number;
   userId?: number;
@@ -196,6 +198,21 @@ export interface AttachmentTree {
   [name: string]: AttachmentTree | AttachmentMeta;
 }
 
+export type SyncConflictType =
+  | 'content'
+  | 'add-add'
+  | 'remote-delete-local-modify'
+  | 'local-delete-remote-modify';
+
+/** pull 已推进到远端 HEAD，但工作树仍需用户明确解决的路径状态。 */
+export interface SyncConflict {
+  path: string;
+  type: SyncConflictType;
+  remoteSnapshotId: string;
+  baseRowKey?: string;
+  remoteRowKey?: string;
+}
+
 /** 保存清单时对应的 Git 工作树状态；非 Git 项目不写入。 */
 export interface GitSyncContext {
   /** Git 工作树根目录，用于识别复制或错用的 .sxq 清单。 */
@@ -208,13 +225,15 @@ export interface GitSyncContext {
 
 /** pull 后记录在 .sxq/attachments.json 的清单，push 合并时使用 */
 export interface AttachmentManifest {
+  /** v2 使用结构化冲突并把 snapshotId 作为唯一远端基线。 */
+  schemaVersion?: 2;
   sessionId: string;
   pulledAt: string;
   /** 最近一次 pull 或 push 成功后对应的远端快照 ID */
   snapshotId?: string | null;
   tree: AttachmentTree;
-  /** pull 合并时写入了冲突标记、尚未确认解决的文件；push 只对这些文件做残留标记检查 */
-  conflicts?: string[];
+  /** pull 已推进远端基线、但本地工作树尚未明确解决的冲突。 */
+  conflicts?: SyncConflict[];
   /** Git 项目用于防止跨分支/回退历史误推送；非 Git 项目为空。 */
   git?: GitSyncContext;
 }

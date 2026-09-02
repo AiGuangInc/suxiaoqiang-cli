@@ -4,7 +4,13 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { getSxqDir } from './config.js';
 import { getGitContext } from './git.js';
-import type { AttachmentManifest, AttachmentMeta, AttachmentTree, SessionAttachment } from '../types/index.js';
+import type {
+  AttachmentManifest,
+  AttachmentMeta,
+  AttachmentTree,
+  SessionAttachment,
+  SyncConflict,
+} from '../types/index.js';
 
 const MANIFEST_FILE = 'attachments.json';
 
@@ -85,7 +91,8 @@ export async function saveManifest(manifest: AttachmentManifest, cwd: string = p
   await mkdir(getSxqDir(cwd), { recursive: true });
   const git = await getGitContext(cwd);
   const { git: _previousGit, ...rest } = manifest;
-  const persisted = git ? { ...rest, git } : rest;
+  const normalized = { ...rest, schemaVersion: 2 as const };
+  const persisted = git ? { ...normalized, git } : normalized;
   await writeFile(getManifestPath(cwd), JSON.stringify(persisted, null, 2), 'utf-8');
 }
 
@@ -95,5 +102,18 @@ export async function loadManifest(cwd: string = process.cwd()): Promise<Attachm
     return null;
   }
   const content = await readFile(path, 'utf-8');
-  return JSON.parse(content) as AttachmentManifest;
+  const parsed = JSON.parse(content) as Omit<AttachmentManifest, 'conflicts'> & {
+    conflicts?: Array<SyncConflict | string>;
+  };
+  // v1 只保存冲突路径；兼容升级为普通内容冲突，下一次 save 时持久化为 v2。
+  const conflicts = (parsed.conflicts ?? []).map((conflict): SyncConflict =>
+    typeof conflict === 'string'
+      ? {
+          path: conflict,
+          type: 'content',
+          remoteSnapshotId: parsed.snapshotId ?? '0',
+        }
+      : conflict
+  );
+  return { ...parsed, schemaVersion: 2, conflicts };
 }
