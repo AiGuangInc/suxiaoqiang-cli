@@ -141,6 +141,7 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
     // ── 4. 按时间戳顺序逐个执行，失败即停 ──────────────────
     newMigrations.sort();
     let executed = 0;
+    let preSnapshotId = pullResult.snapshotId;
     for (const name of newMigrations) {
       const fileName = `${MIGRATIONS_DIR}/${name}`;
       spinner.text = t('db.executing', {
@@ -149,7 +150,12 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
         name,
       });
       const content = await readFile(join(dir, name), 'utf-8');
-      const result = await supabaseExecuteMigration({ sessionId, fileName, content });
+      const result = await supabaseExecuteMigration({
+        sessionId,
+        fileName,
+        content,
+        preSnapshotId,
+      });
       debug('supabaseExecuteMigration', { fileName, result });
       if (!result?.success) {
         spinner.fail(t('db.execFailed', { name: fileName }));
@@ -166,6 +172,10 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
         if (executed > 0) logger.info(t('db.executedBefore', { count: executed }));
         process.exit(1);
       }
+      if (!result.snapshotId) {
+        throw new Error(t('db.snapshotMissing', { name: fileName }));
+      }
+      preSnapshotId = result.snapshotId;
       executed++;
     }
 

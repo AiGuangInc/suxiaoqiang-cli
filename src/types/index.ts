@@ -241,6 +241,8 @@ export interface AttachmentManifest {
 /** supabaseExecuteMigration 请求参数（执行数据库迁移） */
 export interface SupabaseMigrationParams {
   sessionId: string;
+  /** 本次迁移执行前的研发主线快照；传入时由服务端做乐观锁校验。 */
+  preSnapshotId?: string;
   /** 迁移文件名（附件全路径，如 supabase/migrations/20260506210939_b9c21d2a344c4871b08a744b2e724176.sql） */
   fileName: string;
   /** 迁移文件内容（DDL SQL） */
@@ -254,6 +256,8 @@ export interface SupabaseMigrationParams {
 /** supabaseExecuteMigration 响应 data */
 export interface SupabaseMigrationResult {
   success: boolean;
+  /** 本次迁移成功后生成的研发主线快照 ID。 */
+  snapshotId?: string;
   errorMsg?: string;
   /** 数据库返回的具体错误原因 */
   errorDetail?: string;
