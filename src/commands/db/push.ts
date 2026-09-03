@@ -9,6 +9,7 @@ import { loadManifest, flattenTree } from '../../lib/manifest.js';
 import { runPull } from '../pull.js';
 import { debug, isDebug } from '../../lib/debug.js';
 import { t } from '../../lib/i18n.js';
+import { prepareDatabasePlugin } from './common.js';
 
 export const MIGRATIONS_DIR = 'supabase/migrations';
 /** 强制：<14 位 yyyyMMddHHmmss>_<标识>.sql；时间戳是迁移回放排序键 */
@@ -72,9 +73,11 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
   }
 
   const { sessionId } = config;
-  const spinner = ora(t('push.checking')).start();
+  const spinner = ora();
 
   try {
+    await prepareDatabasePlugin(sessionId);
+    spinner.start(t('push.checking'));
     // ── 1. 先拉取远程变更（拿到远端已有迁移的基线），有冲突则中断 ─
     const pullResult = await runPull(sessionId, spinner, {
       gitCommand: 'db push',

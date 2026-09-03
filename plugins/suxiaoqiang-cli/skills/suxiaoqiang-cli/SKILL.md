@@ -1,11 +1,12 @@
 ---
 name: suxiaoqiang-cli
 description: >
-  Use suxiaoqiang-cli (sxq) to sync, edit, preview and release Superun vibe coding projects
-  from the terminal. Use when the user asks to pull/push Superun project code, publish a
-  preview build, deploy/release a Superun app, check release status, or mentions "sxq",
-  "suxiaoqiang-cli", or a Superun sessionId. 当用户要求同步/推送 Superun 项目代码、发布预览、
-  上线 Superun 应用、查看发布状态,或提到 sxq / suxiaoqiang-cli 时使用。
+  Use suxiaoqiang-cli (sxq) to sync, edit, preview, release, manage allowlisted project plugins,
+  install private plugin skills, and query Superun Cloud databases or logs from the terminal.
+  Use when the user mentions sxq, suxiaoqiang-cli, a Superun sessionId, project plugin management,
+  db query/logs/migrations, or explicitly requests a maintainer release of the CLI, npm package,
+  plugin skill, or documentation. 当用户提到 sxq、suxiaoqiang-cli、Superun sessionId、项目插件、
+  私有插件技能、数据库查询/日志/迁移，或明确要求发布 CLI、npm 包、插件 skill 或文档时使用。
 ---
 
 # suxiaoqiang-cli (sxq)
@@ -62,6 +63,35 @@ sxq deploy --status         # read-only: pending/published versions + live URL
   project-level `push-branch` (defaults to `main`).
 - `--debug` on any command prints full request/response logs (tokens masked) — use it when
   diagnosing failures.
+
+## Project plugins and private skills
+
+The CLI exposes only the server allowlist of project plugins:
+
+- `SUPERUN_CLOUD`
+- `SUPERUN_AI`
+- `SUPERUN_MANAGED_AGENT_V2`
+- `SUPERUN_STORAGE`
+- `TTS`
+- `ASR`
+- `VIDEO_GENERATE`
+- `NANO_BANANA`
+- `OCR`
+
+Use `sxq plugin list` or `sxq plugin status [pluginId]` to inspect them. `sxq plugin enable <pluginId>`
+waits for the remote integration lifecycle and, after success, installs its private skills.
+`sxq plugin disable <pluginId>` may also disable dependent plugins and requires interactive
+confirmation.
+
+Plugin skills are private, plugin-owned resources rather than the general Superun skill catalog.
+When an agent needs one, it must run `sxq plugin skill <pluginId>` itself. The command force-upgrades
+all files for every associated skill into `.superun/skills/<skillId>/`; a skill may include
+`SKILL.md`, references, scripts, assets, and other files. Do not edit those generated files because a
+later plugin operation may overwrite them with the newest server version.
+
+`.superun/skills/` is deliberately outside project attachment sync: `sxq pull` never reads,
+overwrites, or tracks it, and `sxq push` never uploads it. Plugin capability commands upgrade the
+relevant private skills before use.
 
 ## Git collaboration safety
 
@@ -124,6 +154,21 @@ Full flow:
    new migration instead.
 4. Migration SQL should be idempotent where possible (`create table if not exists`, `drop ... if exists`).
 
+## Database queries and logs
+
+Every `sxq db` command requires `SUPERUN_CLOUD=ENABLED` and first force-upgrades that plugin's private
+skills.
+
+- `sxq db query [sql] [--file <path>] [--limit <n>] [--json]` runs SQL against Debug by default and
+  accepts exactly one SQL argument, file, or stdin stream. Debug permits writes for development;
+  durable, replayable schema changes should still use a migration plus `sxq db push`.
+- `sxq db logs [--type <type>] [--since <range>] [--filter <text>] [--limit <n>] [--json]` queries
+  superun Cloud logs. Use `sxq db logs --help` for the supported log types and time ranges.
+- Add `--prod` to `db query` or `db logs` only when the linked project has isolated deployment
+  enabled. Without `--prod`, isolated projects query Debug and may write. With `--prod`, they query
+  Production and both CLI and backend enforce read-only SQL. If isolated deployment is not enabled,
+  `--prod` fails instead of silently querying the current database.
+
 ## Rules of thumb
 
 1. Run `sxq pull` before editing if the project may have changed remotely (e.g. the user also
@@ -136,3 +181,40 @@ Full flow:
    an actionable error message on stderr — read it before retrying.
 5. Never commit or expose the contents of `.sxq/` (it contains the sessionId and session
    metadata; anyone with the sessionId may be able to read project files).
+
+## Maintainer release SOP
+
+Use this workflow only when the user explicitly asks to publish `suxiaoqiang-cli` itself. An app
+release through `sxq deploy` is a different workflow and does not authorize any package, GitHub,
+plugin, or documentation publication.
+
+1. Prepare one complete release from a branch that descends from the latest `origin/main`:
+   - bump the CLI version in `package.json` and `package-lock.json`;
+   - if the skill changed, bump both
+     `plugins/suxiaoqiang-cli/.claude-plugin/plugin.json` and
+     `plugins/suxiaoqiang-cli/.codex-plugin/plugin.json` to the same plugin version;
+   - keep `plugins/suxiaoqiang-cli/skills/suxiaoqiang-cli/SKILL.md` as the canonical skill source;
+   - run `npm run build`, `npm pack --dry-run`, and inspect the package file list before publishing.
+2. Publish GitHub first, after explicit authorization for the external writes:
+   - merge the reviewed release commit to `main`, create and push tag `v<CLI version>`, then create
+     the matching GitHub release;
+   - verify the remote `main` commit, tag, and release independently;
+   - verify the canonical skill is readable from
+     `https://raw.githubusercontent.com/AiGuangInc/suxiaoqiang-cli/main/plugins/suxiaoqiang-cli/skills/suxiaoqiang-cli/SKILL.md`.
+3. Publish npm only after GitHub succeeds: run `npm publish --access public`, then require
+   `npm view suxiaoqiang-cli version` to equal the intended CLI version. Install that exact version
+   in an isolated location and exercise the changed CLI behavior; a successful build alone is not
+   release acceptance.
+4. Publish the user-facing skill/CLI documentation last, using fresh branches from each docs
+   repository's latest `origin/main`:
+   - main site (`docs.superun.com`): repository `vijayqian-sys/superun`, update
+     `superun/cli/suxiaoqiang-cli.mdx` and its `zh-Hant` translation;
+   - international site (`docs.superun.ai`): repository `qianwujie0905/documentation`, update
+     `superun/cli/suxiaoqiang-cli.mdx` plus its `zh-Hans` and `zh-Hant` translations;
+   - merge both documentation changes, then fetch
+     `https://docs.superun.com/superun/cli/suxiaoqiang-cli.md` and
+     `https://docs.superun.ai/superun/cli/suxiaoqiang-cli.md` and verify the newly changed content
+     is live.
+5. Stop on the first failed publication or live verification. Report GitHub, npm, main-site docs,
+   and international-site docs as separate outcomes; never describe the full release as complete
+   while any one of them is missing or stale.

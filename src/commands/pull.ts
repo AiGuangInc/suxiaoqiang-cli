@@ -31,7 +31,9 @@ function isProtectedPath(name: string): boolean {
     name === '.sxq' ||
     name.startsWith('.sxq/') ||
     name === '.git' ||
-    name.startsWith('.git/')
+    name.startsWith('.git/') ||
+    name === '.superun/skills' ||
+    name.startsWith('.superun/skills/')
   );
 }
 
@@ -141,9 +143,15 @@ async function syncPull(
       !isUnsafePath(file.name)
   );
   const remoteByPath = new Map(remoteAttachments.map((file) => [file.name, file]));
-  const baseline = manifest ? flattenTree(manifest.tree) : new Map<string, AttachmentMeta>();
+  // 插件私有 skill 由 `sxq plugin skill` 独占管理，既不从附件 materialize，也不沿用旧 manifest。
+  const baseline = new Map(
+    [...(manifest ? flattenTree(manifest.tree) : new Map<string, AttachmentMeta>()).entries()]
+      .filter(([path]) => !isProtectedPath(path))
+  );
   const conflicts = new Map(
-    (manifest?.conflicts ?? []).map((conflict) => [conflict.path, conflict])
+    (manifest?.conflicts ?? [])
+      .filter((conflict) => !isProtectedPath(conflict.path))
+      .map((conflict) => [conflict.path, conflict])
   );
   const operations: PullOperation[] = [];
   const updated: string[] = [];

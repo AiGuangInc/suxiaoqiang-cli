@@ -1,6 +1,6 @@
 {
   "name": "suxiaoqiang-cli",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Use sxq to sync, preview, migrate, and release Superun projects safely",
   "author": {
     "name": "AiGuangInc",

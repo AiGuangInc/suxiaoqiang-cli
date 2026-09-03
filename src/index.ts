@@ -6,6 +6,16 @@ import { pushCommand } from './commands/push.js';
 import { deprecatedPublishCommand, previewCommand } from './commands/publish.js';
 import { deployCommand, deployStatusCommand } from './commands/deploy.js';
 import { dbPushCommand } from './commands/db/push.js';
+import { dbQueryCommand } from './commands/db/query.js';
+import { dbLogsCommand } from './commands/db/logs.js';
+import { positiveInteger } from './commands/db/common.js';
+import {
+  pluginDisableCommand,
+  pluginEnableCommand,
+  pluginListCommand,
+  pluginSkillCommand,
+  pluginStatusCommand,
+} from './commands/plugin.js';
 import { upgradeCommand } from './commands/upgrade.js';
 import { maybeNotifyNewVersion } from './lib/update-check.js';
 import {
@@ -18,6 +28,11 @@ import { setDebug } from './lib/debug.js';
 import { t } from './lib/i18n.js';
 import { visibleConfigKeys } from './commands/config.js';
 import { version } from '../package.json';
+
+process.stdout.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EPIPE') process.exit(0);
+  throw error;
+});
 
 const program = new Command();
 
@@ -177,6 +192,83 @@ db.command('push')
   .option('-f, --force', t('cmd.gitForce'))
   .action(async (options: { message?: string; force?: boolean }) => {
     await dbPushCommand(options);
+  });
+
+db.command('query')
+  .description(t('cmd.dbQuery'))
+  .argument('[sql]', t('cmd.dbQueryArg'))
+  .option('-f, --file <path>', t('cmd.dbQueryFile'))
+  .option('--prod', t('cmd.dbProd'))
+  .option('--limit <number>', t('cmd.dbLimit'), (value) => positiveInteger(value, '--limit'))
+  .option('--json', t('cmd.json'))
+  .action(async (
+    sql: string | undefined,
+    options: { file?: string; prod?: boolean; limit?: number; json?: boolean }
+  ) => {
+    await dbQueryCommand(sql, options);
+  });
+
+db.command('logs')
+  .description(t('cmd.dbLogs'))
+  .option('--prod', t('cmd.dbProd'))
+  .option('--type <type>', t('cmd.dbLogsType'), 'function')
+  .option('--since <range>', t('cmd.dbLogsSince'), '15m')
+  .option('--filter <keyword>', t('cmd.dbLogsFilter'))
+  .option('--limit <number>', t('cmd.dbLimit'), (value) => positiveInteger(value, '--limit'))
+  .addOption(new Option('--order <order>', t('cmd.dbLogsOrder')).choices(['asc', 'desc']).default('desc'))
+  .option('--json', t('cmd.json'))
+  .action(async (options: {
+    prod?: boolean;
+    type?: string;
+    since?: string;
+    filter?: string;
+    limit?: number;
+    order?: 'asc' | 'desc';
+    json?: boolean;
+  }) => {
+    await dbLogsCommand(options);
+  });
+
+// ─── sxq plugin ──────────────────────────────────────────
+
+const plugin = program
+  .command('plugin')
+  .description(t('cmd.plugin'));
+
+plugin.command('list')
+  .description(t('cmd.pluginList'))
+  .option('--json', t('cmd.json'))
+  .action(async (options: { json?: boolean }) => {
+    await pluginListCommand(options);
+  });
+
+plugin.command('status')
+  .description(t('cmd.pluginStatus'))
+  .argument('[pluginId]', t('cmd.pluginIdArg'))
+  .option('--json', t('cmd.json'))
+  .action(async (pluginId: string | undefined, options: { json?: boolean }) => {
+    await pluginStatusCommand(pluginId, options);
+  });
+
+plugin.command('enable')
+  .description(t('cmd.pluginEnable'))
+  .argument('<pluginId>', t('cmd.pluginIdArg'))
+  .action(async (pluginId: string) => {
+    await pluginEnableCommand(pluginId);
+  });
+
+plugin.command('skill')
+  .description(t('cmd.pluginSkill'))
+  .argument('<pluginId>', t('cmd.pluginIdArg'))
+  .action(async (pluginId: string) => {
+    await pluginSkillCommand(pluginId);
+  });
+
+plugin.command('disable')
+  .description(t('cmd.pluginDisable'))
+  .argument('<pluginId>', t('cmd.pluginIdArg'))
+  .action(async (pluginId: string) => {
+    await pluginDisableCommand(pluginId);
   });
 
 // ─── 解析 ─────────────────────────────────────────────────

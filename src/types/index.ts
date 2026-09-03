@@ -265,6 +265,114 @@ export interface SupabaseMigrationResult {
   errorHint?: string;
 }
 
+/** uxa-center 为 sxq 透出的白名单项目插件。 */
+export interface ProjectPlugin {
+  pluginId: string;
+  displayName: string;
+  oneliner?: string;
+  state: ProjectPluginState;
+  dependencies: string[];
+  skillIds: string[];
+}
+
+export type ProjectPluginState =
+  | 'UNKNOWN'
+  | 'NOT_ENABLED'
+  | 'ENABLING'
+  | 'ENABLED'
+  | 'PAUSING'
+  | 'PAUSED'
+  | 'RESTORING'
+  | 'DISABLING'
+  | 'DISABLED';
+
+export interface ProjectPluginListResult {
+  plugins: ProjectPlugin[];
+}
+
+export interface ProjectPluginStatusResult {
+  pluginId: string;
+  state: ProjectPluginState;
+}
+
+export interface ProjectPluginSkill {
+  skillId: string;
+  version?: number;
+  /** skill 根目录下的相对路径到 UTF-8 文件内容。 */
+  files: Record<string, string>;
+}
+
+export interface ProjectPluginSkillResult {
+  pluginId: string;
+  skills: ProjectPluginSkill[];
+  missingSkillIds?: string[];
+}
+
+export interface SupabaseRunQueryParams {
+  sessionId: string;
+  env?: 'debug' | 'prod';
+  query: string;
+  limit?: number;
+}
+
+export interface IsolatedDebugStatusResult {
+  enabled?: boolean;
+  status?: string | null;
+}
+
+export type CloudLogType =
+  | 'function_edge_logs'
+  | 'auth_logs'
+  | 'postgres_logs'
+  | 'realtime_logs'
+  | 'storage_logs'
+  | 'cron_job_logs'
+  | 'edge_logs'
+  | 'function_logs'
+  | 'postgrest_logs'
+  | 'supavisor_logs'
+  | 'pgbouncer_logs'
+  | 'pg_upgrade_logs';
+
+export type CloudLogTimeRange =
+  | 'last5minutes'
+  | 'last15minutes'
+  | 'last30minutes'
+  | 'last1hour'
+  | 'last3hours'
+  | 'last24hours'
+  | 'last2days'
+  | 'last3days'
+  | 'last5days';
+
+export interface CloudLogQueryParams {
+  sessionId: string;
+  env: 'debug' | 'prod';
+  type: CloudLogType;
+  timeRange: CloudLogTimeRange;
+  filter?: string;
+  limit?: number;
+  orderBy?: 'asc' | 'desc';
+  paginate: true;
+}
+
+export interface CloudLogItem {
+  id?: string;
+  timestamp?: number;
+  log_level?: string;
+  event_message?: string;
+  pathname?: string;
+  path?: string;
+  status_code?: number;
+  method?: string;
+  details?: unknown;
+  [key: string]: unknown;
+}
+
+export interface CloudLogQueryResult {
+  items: CloudLogItem[];
+}
+
 /** pageQuerySessionByLastId 请求参数（keyword 精确匹配 sessionId 或模糊匹配项目名） */
 export interface PageQuerySessionParams {
   pageSize: number;

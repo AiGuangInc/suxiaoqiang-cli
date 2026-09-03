@@ -2,7 +2,35 @@ import { getApiBase, getToken, getServiceChain, getTsid, getPrivateToken } from 
 import { logger } from './logger.js';
 import { debug, isDebug } from './debug.js';
 import { t } from './i18n.js';
-import type { ApiResponse, BatchManualModifyParams, BatchManualModifySyncResult, CanDownloadCodeParams, DeployEdgeFunctionParams, DeployEdgeFunctionResult, GlowConsultChatParams, GlowConsultChatResult, PageQuerySessionParams, PageResult, PublishDebugParams, PublishDebugResult, PublishLogInfo, QueryAttachmentParams, QueryPublishDebugResultParams, QuerySessionAttachmentsParams, SessionAttachmentsSyncResult, SessionInfo, SupabaseMigrationParams, SupabaseMigrationResult } from '../types/index.js';
+import type {
+  ApiResponse,
+  BatchManualModifyParams,
+  BatchManualModifySyncResult,
+  CanDownloadCodeParams,
+  CloudLogQueryParams,
+  CloudLogQueryResult,
+  DeployEdgeFunctionParams,
+  DeployEdgeFunctionResult,
+  GlowConsultChatParams,
+  GlowConsultChatResult,
+  IsolatedDebugStatusResult,
+  PageQuerySessionParams,
+  PageResult,
+  ProjectPluginListResult,
+  ProjectPluginSkillResult,
+  ProjectPluginStatusResult,
+  PublishDebugParams,
+  PublishDebugResult,
+  PublishLogInfo,
+  QueryAttachmentParams,
+  QueryPublishDebugResultParams,
+  QuerySessionAttachmentsParams,
+  SessionAttachmentsSyncResult,
+  SessionInfo,
+  SupabaseMigrationParams,
+  SupabaseMigrationResult,
+  SupabaseRunQueryParams,
+} from '../types/index.js';
 
 /** 解析 JSON 响应；网关/登录页拦截时服务端会返回 HTML，给出可操作的报错而非 JSON 解析异常 */
 async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
@@ -100,6 +128,60 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     throw new Error(message || t('api.requestFailed', { code: json.code }));
   }
 
+  return json;
+}
+
+/** Web BFF 的 GET 接口也使用统一 ApiResponse 外壳。 */
+async function requestGet<T>(path: string, params: Record<string, unknown>): Promise<ApiResponse<T>> {
+  const token = getToken();
+  if (!token) {
+    logger.error(t('api.notLoggedIn'));
+    process.exit(1);
+  }
+
+  const apiBase = getApiBase();
+  const url = new URL(path, apiBase);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  const isCnPre = new URL(apiBase).hostname === 'superun.pre.qima-inc.com';
+  const headers: Record<string, string> = { 'access-token': token };
+  const serviceChain = getServiceChain();
+  if (serviceChain) headers['x-service-chain'] = serviceChain;
+  const tsid = getTsid();
+  if (tsid) headers.Cookie = `TSID=${tsid}`;
+  const privateToken = isCnPre ? getPrivateToken() : undefined;
+  if (privateToken) headers['PRIVATE-TOKEN'] = privateToken;
+
+  debug('Request URL', url.toString());
+  debug('Request Headers', {
+    ...headers,
+    'access-token': '***',
+    ...(tsid ? { Cookie: 'TSID=***' } : {}),
+    ...(privateToken ? { 'PRIVATE-TOKEN': '***' } : {}),
+  });
+
+  const res = await fetch(url, { method: 'GET', headers, redirect: 'manual' });
+  debug('Response Status', `${res.status} ${res.statusText}`);
+  debug('Response Headers', Object.fromEntries(res.headers.entries()));
+  if (res.status >= 300 && res.status < 400 && isCnPre) {
+    throw new Error(t(privateToken ? 'api.privateTokenInvalid' : 'api.privateTokenRequired'));
+  }
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => '');
+    debug('Response Error Body', errorBody);
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+  const json = await parseJsonResponse<T>(res);
+  if (json.code !== 0) {
+    const message = json.message || json.msg;
+    if (json.code === 1000011) {
+      throw new Error(t('api.tokenExpired', { detail: message ? ` (${message})` : '' }));
+    }
+    throw new Error(message || t('api.requestFailed', { code: json.code }));
+  }
   return json;
 }
 
@@ -229,6 +311,83 @@ export async function supabaseExecuteMigration(
 ): Promise<SupabaseMigrationResult> {
   const response = await request<SupabaseMigrationResult>(
     '/api/uxa-center/agent/SessionIntegration/supabaseExecuteMigration',
+    params as unknown as Record<string, unknown>
+  );
+  return response.data;
+}
+
+const PROJECT_PLUGIN_PATH = '/api/uxa-center/agent/ProjectPlugin';
+
+export async function listProjectPlugins(sessionId: string): Promise<ProjectPluginListResult> {
+  const response = await request<ProjectPluginListResult>(`${PROJECT_PLUGIN_PATH}/list`, { sessionId });
+  return response.data;
+}
+
+export async function queryProjectPluginStatus(
+  sessionId: string,
+  pluginId: string
+): Promise<ProjectPluginStatusResult> {
+  const response = await request<ProjectPluginStatusResult>(`${PROJECT_PLUGIN_PATH}/status`, {
+    sessionId,
+    pluginId,
+  });
+  return response.data;
+}
+
+export async function enableProjectPlugin(
+  sessionId: string,
+  pluginId: string
+): Promise<ProjectPluginStatusResult> {
+  const response = await request<ProjectPluginStatusResult>(`${PROJECT_PLUGIN_PATH}/enable`, {
+    sessionId,
+    pluginId,
+  });
+  return response.data;
+}
+
+export async function disableProjectPlugin(
+  sessionId: string,
+  pluginId: string
+): Promise<ProjectPluginStatusResult> {
+  const response = await request<ProjectPluginStatusResult>(`${PROJECT_PLUGIN_PATH}/disable`, {
+    sessionId,
+    pluginId,
+  });
+  return response.data;
+}
+
+export async function queryProjectPluginSkill(
+  sessionId: string,
+  pluginId: string
+): Promise<ProjectPluginSkillResult> {
+  const response = await request<ProjectPluginSkillResult>(`${PROJECT_PLUGIN_PATH}/skill`, {
+    sessionId,
+    pluginId,
+  });
+  return response.data;
+}
+
+/** 用户态只读 SQL 查询。 */
+export async function supabaseRunQuery(params: SupabaseRunQueryParams): Promise<string> {
+  const response = await request<string>(
+    '/api/uxa-center/agent/SessionIntegration/supabaseRunQuery',
+    params as unknown as Record<string, unknown>
+  );
+  return response.data;
+}
+
+export async function queryIsolatedDebugStatus(sessionId: string): Promise<IsolatedDebugStatusResult> {
+  const response = await request<IsolatedDebugStatusResult>(
+    '/api/uxa-center/agent/SessionIntegration/queryIsolatedDebugStatus',
+    { sessionId }
+  );
+  return response.data;
+}
+
+/** 语义化日志查询由 Web BFF 转换后调用 uxa-center supabaseLogAll。 */
+export async function queryCloudLogs(params: CloudLogQueryParams): Promise<CloudLogQueryResult> {
+  const response = await requestGet<CloudLogQueryResult>(
+    '/web-api/cloud/logs',
     params as unknown as Record<string, unknown>
   );
   return response.data;
