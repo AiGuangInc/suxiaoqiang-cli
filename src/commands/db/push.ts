@@ -9,6 +9,7 @@ import { loadManifest, flattenTree } from '../../lib/manifest.js';
 import { runPull } from '../pull.js';
 import { debug, isDebug } from '../../lib/debug.js';
 import { t } from '../../lib/i18n.js';
+import { prepareDatabasePlugin } from './common.js';
 
 export const MIGRATIONS_DIR = 'supabase/migrations';
 /** 强制：<14 位 yyyyMMddHHmmss>_<标识>.sql；时间戳是迁移回放排序键 */
@@ -72,9 +73,11 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
   }
 
   const { sessionId } = config;
-  const spinner = ora(t('push.checking')).start();
+  const spinner = ora();
 
   try {
+    await prepareDatabasePlugin(sessionId);
+    spinner.start(t('push.checking'));
     // ── 1. 先拉取远程变更（拿到远端已有迁移的基线），有冲突则中断 ─
     const pullResult = await runPull(sessionId, spinner, {
       gitCommand: 'db push',
@@ -141,6 +144,7 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
     // ── 4. 按时间戳顺序逐个执行，失败即停 ──────────────────
     newMigrations.sort();
     let executed = 0;
+    let preSnapshotId = pullResult.snapshotId;
     for (const name of newMigrations) {
       const fileName = `${MIGRATIONS_DIR}/${name}`;
       spinner.text = t('db.executing', {
@@ -149,7 +153,12 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
         name,
       });
       const content = await readFile(join(dir, name), 'utf-8');
-      const result = await supabaseExecuteMigration({ sessionId, fileName, content });
+      const result = await supabaseExecuteMigration({
+        sessionId,
+        fileName,
+        content,
+        preSnapshotId,
+      });
       debug('supabaseExecuteMigration', { fileName, result });
       if (!result?.success) {
         spinner.fail(t('db.execFailed', { name: fileName }));
@@ -166,6 +175,10 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
         if (executed > 0) logger.info(t('db.executedBefore', { count: executed }));
         process.exit(1);
       }
+      if (!result.snapshotId) {
+        throw new Error(t('db.snapshotMissing', { name: fileName }));
+      }
+      preSnapshotId = result.snapshotId;
       executed++;
     }
 

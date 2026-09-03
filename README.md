@@ -63,9 +63,32 @@ sxq deploy                  # opens the project release confirmation page in you
 | `sxq publish` | Compatibility alias for `sxq preview front`. |
 | `sxq deploy` | Open the linked project's release confirmation page. The CLI does not release directly. |
 | `sxq deploy --status` | Show pending / published versions and the live URL without releasing. |
+| `sxq plugin list\|status\|enable\|skill\|disable` | Manage allowlisted project plugins; `skill` force-installs/upgrades private plugin skills. |
 | `sxq db push [-f] [-m <msg>]` | Execute new database migrations under `supabase/migrations/`; Git projects only operate on the configured branch by default. |
+| `sxq db query [sql] [--file <path>] [--prod] [--limit <n>] [--json]` | Run SQL; Debug permits writes, while `--prod` queries the isolated live database read-only. |
+| `sxq db logs [--type <type>] [--since <range>] [--prod] [--json]` | Query superun Cloud logs; use `--prod` for live logs when isolated deployment is enabled. |
 | `sxq config set\|get\|unset\|list` | Manage config. Keys: `host`, `lang` (`zh` / `en`), and project-level `push-branch` (default `main`). |
 | `sxq upgrade` | Upgrade the CLI to the latest version from npm. |
+
+## Project plugins and private skills
+
+The CLI only exposes project plugins on the server-managed allowlist. The first version supports
+`SUPERUN_CLOUD`, `SUPERUN_AI`, `SUPERUN_MANAGED_AGENT_V2`, `SUPERUN_STORAGE`, `TTS`, `ASR`,
+`VIDEO_GENERATE`, `NANO_BANANA`, and `OCR`.
+
+```bash
+sxq plugin list
+sxq plugin enable SUPERUN_CLOUD
+sxq plugin skill SUPERUN_CLOUD
+```
+
+`sxq plugin skill` force-upgrades every private skill file associated with the plugin and writes it
+under `.superun/skills/<skill-id>/`. A skill can contain `SKILL.md`, references, scripts, and other
+files. Agents should install a plugin skill themselves with `sxq plugin skill <PLUGIN_ID>` when needed.
+
+`.superun/skills/` is outside project code synchronization: `sxq pull` never reads or overwrites it,
+and `sxq push` never uploads it. Plugin capability commands force-upgrade their relevant private
+skills before running; every `sxq db` operation upgrades the `SUPERUN_CLOUD` skills.
 
 ## Claude Code and Codex plugins
 
@@ -113,9 +136,23 @@ sxq db push -m "add user profile tables"
 
 It pulls first and finds migrations that don't exist remotely yet. If a pending migration reuses a timestamp from either another pending migration or an existing remote migration, it aborts before executing any SQL; otherwise it executes migrations one by one in timestamp order, stopping at the first failure and printing the error. The server stores each successful migration as a project attachment automatically, so **don't push migration files with `sxq push`** (the CLI blocks them).
 
+SQL and log queries:
+
+```bash
+sxq db query "select * from users limit 20"
+sxq db query --file query.sql --json
+sxq db logs --type function --since 15m
+```
+
+With isolated deployment enabled, these commands query Debug by default and query Production only
+with `--prod`. `--prod` fails explicitly when isolated deployment is not enabled. Debug queries may
+write for development workflows; `--prod` is enforced read-only by both the CLI and backend. Use
+migration files and `sxq db push` for durable, replayable schema changes.
+
 ## Notes
 
 - **`.gitignore` support**: `pull` / `push` respect your project's `.gitignore` (plus built-in ignores like `node_modules`, `dist`, `.git`). Ignored files are never synced.
+- **Plugin skill isolation**: `.superun/skills/` is managed only by `sxq plugin skill` and plugin capability commands; it never enters the `pull` / `push` attachment manifest.
 - **Git local-file guard**: `pull`, `push`, and `db push` only operate on the configured `push-branch` and reject merge/rebase intermediate states, mismatched worktrees, or rewritten history. Non-Git projects skip these checks. Use `sxq config set push-branch master` to change the project branch; `-f` only ignores branch restrictions.
 - **Push plan confirmation**: `push` lists every added, modified, and deleted file and asks for `y/N` confirmation by default. `-y` means the list has been reviewed and accepted.
 - **Non-interactive / CI / AI agents**: terminal confirmation prompts have a `-y` flag and fail fast outside a TTY. Production release confirmation always happens in the browser; `sxq deploy` cannot bypass it.

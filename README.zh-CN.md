@@ -63,9 +63,32 @@ sxq deploy                  # 在浏览器中打开项目发布确认页
 | `sxq publish` | `sxq preview front` 的兼容别名。 |
 | `sxq deploy` | 打开当前关联项目的发布确认页，CLI 不会直接发布。 |
 | `sxq deploy --status` | 只查看待上线/已发布版本和访问地址，不触发上线。 |
+| `sxq plugin list\|status\|enable\|skill\|disable` | 管理当前项目的白名单插件；`skill` 强制安装/升级插件私有技能。 |
 | `sxq db push [-f] [-m <msg>]` | 执行 `supabase/migrations/` 下新增的数据库迁移；Git 项目默认仅允许在配置分支操作。 |
+| `sxq db query [sql] [--file <path>] [--prod] [--limit <n>] [--json]` | 执行 SQL；Debug 允许写入，开启独立部署后可用只读 `--prod` 查询线上库。 |
+| `sxq db logs [--type <type>] [--since <range>] [--prod] [--json]` | 查询 superun Cloud 日志；开启独立部署后可用 `--prod` 查询线上日志。 |
 | `sxq config set\|get\|unset\|list` | 管理配置。支持项：`host`、`lang`（`zh` / `en`）、项目级 `push-branch`（默认 `main`）。 |
 | `sxq upgrade` | 从 npm 升级 CLI 到最新版本。 |
+
+## 项目插件和私有技能
+
+CLI 只展示服务端白名单内的项目插件。当前支持 `SUPERUN_CLOUD`、`SUPERUN_AI`、
+`SUPERUN_MANAGED_AGENT_V2`、`SUPERUN_STORAGE`、`TTS`、`ASR`、`VIDEO_GENERATE`、
+`NANO_BANANA` 和 `OCR`。
+
+```bash
+sxq plugin list
+sxq plugin enable SUPERUN_CLOUD
+sxq plugin skill SUPERUN_CLOUD
+```
+
+`sxq plugin skill` 会把插件关联的全部私有技能文件强制升级到服务端最新版本，写入
+`.superun/skills/<skill-id>/`。每个技能可以包含 `SKILL.md`、references、scripts 等多个文件。
+智能体如需使用，请自行执行对应的 `sxq plugin skill <PLUGIN_ID>` 安装技能。
+
+`.superun/skills/` 不属于项目代码同步：`sxq pull` 不读取或覆盖它，`sxq push` 也不会上传它。
+插件能力命令会在执行前强制升级相关私有技能；例如所有 `sxq db` 操作都会升级
+`SUPERUN_CLOUD` 的技能。
 
 ## Claude Code 与 Codex 插件
 
@@ -113,9 +136,22 @@ sxq db push -m "新增用户资料表"
 
 它会先拉取远端，找出远端还没有的新迁移。如果待执行迁移与其他待执行迁移或远端已有迁移使用了相同时间戳，会在执行任何 SQL 前直接报错；否则按时间戳顺序逐个执行，遇到失败立即停止并打印错误。每个成功迁移都会由服务端自动保存为项目附件，所以**不要用 `sxq push` 推送迁移文件**（CLI 会直接拦下）。
 
+SQL 和日志查询：
+
+```bash
+sxq db query "select * from users limit 20"
+sxq db query --file query.sql --json
+sxq db logs --type function --since 15m
+```
+
+开启独立部署后，默认查询 Debug 数据库/日志；增加 `--prod` 才查询 Production。未开启独立部署时
+使用 `--prod` 会直接报错。默认 Debug 查询允许执行写 SQL，便于研发调试；`--prod` 由 CLI 和后端双重
+强制只读。需要持久、可回放的结构变更仍应使用迁移文件和 `sxq db push`。
+
 ## 说明
 
 - **支持 `.gitignore`**：`pull` / `push` 遵循项目根目录的 `.gitignore`（另有 `node_modules`、`dist`、`.git` 等内置规则），被忽略的文件不参与同步。
+- **插件技能隔离**：`.superun/skills/` 只由 `sxq plugin skill` 和插件能力命令管理，不进入 `pull` / `push` 的项目附件清单。
 - **Git 本地文件保护**：Git 项目的 `pull`、`push` 和 `db push` 默认只能在 `push-branch` 配置的分支执行，并阻止 merge/rebase 等中间状态、worktree 不匹配及非后继历史操作。非 Git 项目不执行这些检查。可用 `sxq config set push-branch master` 修改项目分支；`-f` 仅忽略分支限制。
 - **推送清单确认**：`push` 会列出全部新增、修改和删除文件，并默认要求 `y/N` 确认；`-y` 表示已检查清单并直接确认。
 - **非交互 / CI / AI 智能体**：终端内的确认提示可用 `-y`，非 TTY 环境会快速报错；正式发布必须在浏览器中确认，`sxq deploy` 无法绕过。

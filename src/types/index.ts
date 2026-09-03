@@ -22,13 +22,13 @@ export interface CanDownloadCodeParams {
 
 /** Session 附件项 */
 export interface SessionAttachment {
-  createdAt: string;
-  size: string;
+  createdAt?: string;
+  size?: string;
   name: string;
   type: string;
   rowKey: string;
-  content: string;
-  updatedAt: string;
+  content?: string | null;
+  updatedAt?: string;
 }
 
 /** 代码同步拉取结果。snapshotId 使用字符串，避免 JavaScript 丢失 Long 精度。 */
@@ -40,6 +40,8 @@ export interface SessionAttachmentsSyncResult {
 /** querySessionAttachments 请求参数 */
 export interface QuerySessionAttachmentsParams {
   sessionId: string;
+  /** 精确读取指定研发快照；为空时读取当前研发 HEAD。 */
+  snapshotId?: string;
   nameStartWith?: string;
   replyMessageId?: string;
   existFileNames?: string[];
@@ -80,7 +82,7 @@ export interface BatchManualModifyParams {
   withSnapshot: boolean;
   summary?: string;
   /** pull 时记录的远端快照 ID；服务端用它做乐观锁校验 */
-  preSnapshotId?: string;
+  preSnapshotId: string;
   files: ManualModifyFile[];
   accId?: number;
   userId?: number;
@@ -196,6 +198,21 @@ export interface AttachmentTree {
   [name: string]: AttachmentTree | AttachmentMeta;
 }
 
+export type SyncConflictType =
+  | 'content'
+  | 'add-add'
+  | 'remote-delete-local-modify'
+  | 'local-delete-remote-modify';
+
+/** pull 已推进到远端 HEAD，但工作树仍需用户明确解决的路径状态。 */
+export interface SyncConflict {
+  path: string;
+  type: SyncConflictType;
+  remoteSnapshotId: string;
+  baseRowKey?: string;
+  remoteRowKey?: string;
+}
+
 /** 保存清单时对应的 Git 工作树状态；非 Git 项目不写入。 */
 export interface GitSyncContext {
   /** Git 工作树根目录，用于识别复制或错用的 .sxq 清单。 */
@@ -208,13 +225,15 @@ export interface GitSyncContext {
 
 /** pull 后记录在 .sxq/attachments.json 的清单，push 合并时使用 */
 export interface AttachmentManifest {
+  /** v2 使用结构化冲突并把 snapshotId 作为唯一远端基线。 */
+  schemaVersion?: 2;
   sessionId: string;
   pulledAt: string;
   /** 最近一次 pull 或 push 成功后对应的远端快照 ID */
   snapshotId?: string | null;
   tree: AttachmentTree;
-  /** pull 合并时写入了冲突标记、尚未确认解决的文件；push 只对这些文件做残留标记检查 */
-  conflicts?: string[];
+  /** pull 已推进远端基线、但本地工作树尚未明确解决的冲突。 */
+  conflicts?: SyncConflict[];
   /** Git 项目用于防止跨分支/回退历史误推送；非 Git 项目为空。 */
   git?: GitSyncContext;
 }
@@ -222,6 +241,8 @@ export interface AttachmentManifest {
 /** supabaseExecuteMigration 请求参数（执行数据库迁移） */
 export interface SupabaseMigrationParams {
   sessionId: string;
+  /** 本次迁移执行前的研发主线快照；传入时由服务端做乐观锁校验。 */
+  preSnapshotId?: string;
   /** 迁移文件名（附件全路径，如 supabase/migrations/20260506210939_b9c21d2a344c4871b08a744b2e724176.sql） */
   fileName: string;
   /** 迁移文件内容（DDL SQL） */
@@ -235,11 +256,121 @@ export interface SupabaseMigrationParams {
 /** supabaseExecuteMigration 响应 data */
 export interface SupabaseMigrationResult {
   success: boolean;
+  /** 本次迁移成功后生成的研发主线快照 ID。 */
+  snapshotId?: string;
   errorMsg?: string;
   /** 数据库返回的具体错误原因 */
   errorDetail?: string;
   /** 数据库返回的修复建议 */
   errorHint?: string;
+}
+
+/** uxa-center 为 sxq 透出的白名单项目插件。 */
+export interface ProjectPlugin {
+  pluginId: string;
+  displayName: string;
+  oneliner?: string;
+  state: ProjectPluginState;
+  dependencies: string[];
+  skillIds: string[];
+}
+
+export type ProjectPluginState =
+  | 'UNKNOWN'
+  | 'NOT_ENABLED'
+  | 'ENABLING'
+  | 'ENABLED'
+  | 'PAUSING'
+  | 'PAUSED'
+  | 'RESTORING'
+  | 'DISABLING'
+  | 'DISABLED';
+
+export interface ProjectPluginListResult {
+  plugins: ProjectPlugin[];
+}
+
+export interface ProjectPluginStatusResult {
+  pluginId: string;
+  state: ProjectPluginState;
+}
+
+export interface ProjectPluginSkill {
+  skillId: string;
+  version?: number;
+  /** skill 根目录下的相对路径到 UTF-8 文件内容。 */
+  files: Record<string, string>;
+}
+
+export interface ProjectPluginSkillResult {
+  pluginId: string;
+  skills: ProjectPluginSkill[];
+  missingSkillIds?: string[];
+}
+
+export interface SupabaseRunQueryParams {
+  sessionId: string;
+  env?: 'debug' | 'prod';
+  query: string;
+  limit?: number;
+}
+
+export interface IsolatedDebugStatusResult {
+  enabled?: boolean;
+  status?: string | null;
+}
+
+export type CloudLogType =
+  | 'function_edge_logs'
+  | 'auth_logs'
+  | 'postgres_logs'
+  | 'realtime_logs'
+  | 'storage_logs'
+  | 'cron_job_logs'
+  | 'edge_logs'
+  | 'function_logs'
+  | 'postgrest_logs'
+  | 'supavisor_logs'
+  | 'pgbouncer_logs'
+  | 'pg_upgrade_logs';
+
+export type CloudLogTimeRange =
+  | 'last5minutes'
+  | 'last15minutes'
+  | 'last30minutes'
+  | 'last1hour'
+  | 'last3hours'
+  | 'last24hours'
+  | 'last2days'
+  | 'last3days'
+  | 'last5days';
+
+export interface CloudLogQueryParams {
+  sessionId: string;
+  env: 'debug' | 'prod';
+  type: CloudLogType;
+  timeRange: CloudLogTimeRange;
+  filter?: string;
+  limit?: number;
+  orderBy?: 'asc' | 'desc';
+  paginate: true;
+}
+
+export interface CloudLogItem {
+  id?: string;
+  timestamp?: number;
+  log_level?: string;
+  event_message?: string;
+  pathname?: string;
+  path?: string;
+  status_code?: number;
+  method?: string;
+  details?: unknown;
+  [key: string]: unknown;
+}
+
+export interface CloudLogQueryResult {
+  items: CloudLogItem[];
 }
 
 /** pageQuerySessionByLastId 请求参数（keyword 精确匹配 sessionId 或模糊匹配项目名） */
