@@ -55,8 +55,8 @@ sxq deploy                  # opens the project release confirmation page in you
 
 | Command | Description |
 | --- | --- |
-| `sxq login [-y] [--token <token>]` | Log in via browser authorization, or directly with an existing token (validated first). |
-| `sxq link <sessionId> [-y]` | Link the current directory to a project. Verifies the session belongs to your account. |
+| `sxq login [-y] [--pat / --stdin / --token <token>]` | Obtain and save a PAT via browser authorization, or import a credential with hidden input, stdin, or an existing token (validated before saving). |
+| `sxq link <sessionId> [-y]` | Link the current directory to a project. Requires code sync permission, project access, and stage 2 (demo) or later after style selection. |
 | `sxq pull [-f]` | Pull remote files. Incremental after the first pull, with three-way merge; conflicts get git-style `<<<<<<<` markers. Git projects only operate on the configured branch by default. |
 | `sxq push [-f] [-y] [-m <msg>]` | Pull first, show the complete add/modify/delete plan, then push after confirmation. Git projects only push from the configured branch by default; `-f` ignores branch restrictions and `-y` skips confirmation. |
 | `sxq preview [front\|ef]` | Update the preview environment; defaults to `front`, while `ef` deploys Edge Functions only. |
@@ -69,6 +69,28 @@ sxq deploy                  # opens the project release confirmation page in you
 | `sxq db logs [--type <type>] [--since <range>] [--prod] [--json]` | Query superun Cloud logs; use `--prod` for live logs when isolated deployment is enabled. |
 | `sxq config set\|get\|unset\|list` | Manage config. Keys: `host`, `lang` (`zh` / `en`), and project-level `push-branch` (default `main`). |
 | `sxq upgrade` | Upgrade the CLI to the latest version from npm. |
+
+## Mandatory upgrade policy
+
+The CLI refreshes npm dist-tags on the first command each day; later commands that day only read the
+local cache. `latest` only produces the normal update notice, while the maintainer-controlled
+`required` tag is the minimum allowed version. When the installed version is below `required`, the
+CLI upgrades itself to the latest version through npm and then re-runs the original command with the
+new CLI. `sxq upgrade`, `--version`, and `--help` always run directly.
+
+Only enable or raise the minimum after the target version has been published and verified:
+
+```bash
+npm dist-tag add suxiaoqiang-cli@<minimum-version> required
+npm dist-tag rm suxiaoqiang-cli required  # disable mandatory upgrades
+```
+
+If the npm registry is temporarily unavailable, the CLI keeps enforcing the last successfully read
+policy. A machine with no cached policy fails open so a registry outage cannot disable every command.
+
+The gate can only govern CLI versions that already contain this capability. Roll out the first
+capable release as a normal update before using `required`; a dist-tag cannot retroactively change
+clients published before the gate existed.
 
 ## Project plugins and private skills
 
@@ -162,3 +184,14 @@ migration files and `sxq db push` for durable, replayable schema changes.
 ## License
 
 [Apache-2.0](./LICENSE)
+
+### PAT authentication
+
+Run `sxq login` to authorize in the browser. The CLI exchanges the temporary token through `PersonalAccessToken/create` and saves only the resulting `sup_pat_` PAT in its local configuration with mode `0600`. Existing saved tokens remain supported.
+
+- `sxq login --pat`: enter an existing PAT with hidden input; validate it before saving.
+- `sxq login --stdin`: read a PAT from standard input for password managers or scripts; failed validation preserves the previous credential.
+- `SUPERUN_PAT`: the same environment variable as superun-ai; overrides the saved credential for all API requests via the `access-token` header. With it set, `sxq login` validates the environment credential without saving it or opening a browser. Empty or malformed values fail explicitly.
+- `sxq login --token <token>`: accepts an existing token or PAT for compatibility. Prefer hidden input, stdin, or the environment for PATs to avoid storing credentials in shell history.
+
+An existing `SUPERUN_PAT` still takes precedence after explicit import; run `unset SUPERUN_PAT` to use the newly saved credential. The CLI does not automatically read superun-ai credential files. This business PAT is separate from the domestic pre-release gateway `PRIVATE_TOKEN` / `PRIVATE-TOKEN` credential.

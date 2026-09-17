@@ -1,7 +1,8 @@
+import { readPat, validatePat } from '../lib/pat.js';
 import { randomUUID } from 'node:crypto';
 import ora from 'ora';
-import { setToken, getToken, clearToken, getApiBase } from '../lib/config.js';
-import { pollCliToken, pageQuerySessionByLastId } from '../lib/api.js';
+import { setToken, getToken, getApiBase } from '../lib/config.js';
+import { pollCliToken, pageQuerySessionByLastId, createPersonalAccessToken } from '../lib/api.js';
 import { logger } from '../lib/logger.js';
 import { confirm } from '../lib/prompt.js';
 import { isDebug } from '../lib/debug.js';
@@ -21,24 +22,21 @@ export interface LoginOptions {
   yes?: boolean;
   /** 直接使用已有 token 登录，跳过浏览器授权 */
   token?: string;
+  pat?: boolean;
+  stdin?: boolean;
 }
 
-/** --token 登录：先校验有效性，无效则还原原有凭证 */
+/** 先校验显式凭证，成功后再替换本地凭证。 */
 async function loginWithToken(token: string): Promise<void> {
-  const previous = getToken();
   const spinner = ora(t('login.tokenVerifying')).start();
-  setToken(token);
   try {
     // 该接口按登录账号返回数据且校验凭证，仅用于验证 token 可用
-    await pageQuerySessionByLastId({ pageSize: 1 });
+    await pageQuerySessionByLastId({ pageSize: 1 }, token);
+    setToken(token);
     spinner.succeed(t('login.success'));
     logger.success(t('login.tokenSaved'));
+    if (process.env.SUPERUN_PAT !== undefined) logger.info(t('login.envOverride'));
   } catch (error) {
-    if (previous) {
-      setToken(previous);
-    } else {
-      clearToken();
-    }
     spinner.fail(t('login.tokenInvalid'));
     logger.error((error as Error).message);
     if (isDebug()) {
@@ -50,8 +48,20 @@ async function loginWithToken(token: string): Promise<void> {
 
 export async function loginCommand(options: LoginOptions = {}): Promise<void> {
   // 显式传 token 即视为确认覆盖，无需二次确认
-  if (options.token) {
-    await loginWithToken(options.token);
+  if (options.pat || options.stdin) {
+    await loginWithToken(await readPat(Boolean(options.pat)));
+    return;
+  }
+  if (options.token !== undefined) {
+    const token = options.token.trim();
+    if (!token) throw new Error(t('login.emptyToken'));
+    await loginWithToken(token);
+    return;
+  }
+
+  if (process.env.SUPERUN_PAT !== undefined) {
+    await pageQuerySessionByLastId({ pageSize: 1 }, validatePat(process.env.SUPERUN_PAT));
+    logger.success(t('login.envUsed'));
     return;
   }
 
@@ -77,9 +87,10 @@ export async function loginCommand(options: LoginOptions = {}): Promise<void> {
   try {
     while (Date.now() < deadline) {
       await sleep(POLL_INTERVAL_MS);
-      const token = await pollCliToken(uuid).catch(() => null);
+      const token = await pollCliToken(uuid);
       if (token) {
-        setToken(token);
+        const pat = validatePat(await createPersonalAccessToken(token));
+        setToken(pat);
         spinner.succeed(t('login.success'));
         logger.success(t('login.tokenSaved'));
         return;

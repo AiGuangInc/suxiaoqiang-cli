@@ -55,8 +55,8 @@ sxq deploy                  # 在浏览器中打开项目发布确认页
 
 | 命令 | 说明 |
 | --- | --- |
-| `sxq login [-y] [--token <token>]` | 浏览器授权登录；也可用 `--token` 直接以已有 token 登录（会先校验有效性）。 |
-| `sxq link <sessionId> [-y]` | 关联当前目录到项目，会校验 session 归属于当前账号。 |
+| `sxq login [-y] [--pat / --stdin / --token <token>]` | 浏览器授权后签发并保存 PAT；支持隐藏输入、标准输入或已有 token（先校验再保存）。 |
+| `sxq link <sessionId> [-y]` | 关联当前目录到项目，校验代码同步权限、项目可见性，且项目须完成样式选择、阶段至少为 2（演示）。 |
 | `sxq pull [-f]` | 拉取远端文件。首次全量，之后增量并做三方合并，冲突写入 git 风格 `<<<<<<<` 标记；Git 项目默认仅允许在配置分支操作。 |
 | `sxq push [-f] [-y] [-m <msg>]` | 先拉取并展示新增、修改、删除清单，确认后推送并生成快照。Git 项目默认仅允许从配置分支推送；`-f` 忽略分支限制，`-y` 跳过确认。 |
 | `sxq preview [front\|ef]` | 更新预览环境；默认 `front`，`ef` 单独部署 Edge Function。 |
@@ -69,6 +69,26 @@ sxq deploy                  # 在浏览器中打开项目发布确认页
 | `sxq db logs [--type <type>] [--since <range>] [--prod] [--json]` | 查询 superun Cloud 日志；开启独立部署后可用 `--prod` 查询线上日志。 |
 | `sxq config set\|get\|unset\|list` | 管理配置。支持项：`host`、`lang`（`zh` / `en`）、项目级 `push-branch`（默认 `main`）。 |
 | `sxq upgrade` | 从 npm 升级 CLI 到最新版本。 |
+
+## 强制升级策略
+
+CLI 每天第一次执行命令时刷新 npm dist-tags，当天后续命令只读取本地缓存。`latest`
+只产生普通升级提示；维护者设置的 `required` 代表最低可用版本。当前版本低于
+`required` 时，CLI 会先通过 npm 自动升级到最新版，再用升级后的 CLI 重新执行用户原命令。
+`sxq upgrade`、`--version` 和 `--help` 始终可以直接执行。
+
+维护者只能在目标版本已发布并验证可用后启用或提高强更下限：
+
+```bash
+npm dist-tag add suxiaoqiang-cli@<最低可用版本> required
+npm dist-tag rm suxiaoqiang-cli required  # 取消强更
+```
+
+npm registry 暂时不可用时，CLI 会继续执行上次成功获取的强更策略；若本机从未获取过
+策略则放行，避免 registry 故障导致所有命令不可用。
+
+注意：强更门禁只能约束已经包含该能力的 CLI 版本。首次上线时应先让用户完成一次正常
+升级，之后再用 `required` 管理这些版本的最低下限；它无法反向改变此前已经发布的旧代码。
 
 ## 项目插件和私有技能
 
@@ -161,3 +181,14 @@ sxq db logs --type function --since 15m
 ## 开源协议
 
 [Apache-2.0](./LICENSE)
+
+### PAT 登录
+
+运行 `sxq login`，在浏览器授权后，CLI 使用临时 token 调用 `PersonalAccessToken/create` 签发 `sup_pat_` PAT，并仅将 PAT 保存到本地权限为 `0600` 的配置文件。原有 token 配置仍可使用。
+
+- `sxq login --pat`：隐藏输入已有 PAT，在线校验后保存。
+- `sxq login --stdin`：从标准输入读取 PAT，适合密码管理器或脚本；校验失败保留原凭证。
+- `SUPERUN_PAT`：与 superun-ai 使用相同环境变量，优先于本地凭证，所有 API 请求通过 `access-token` 头携带。设置后执行 `sxq login` 只校验环境变量，不落盘，也不打开浏览器。空值或格式错误会直接报错。
+- `sxq login --token <token>`：兼容已有 token 或 PAT；为避免命令历史记录凭证，PAT 推荐通过 `--pat`、`--stdin` 或环境变量传入。
+
+显式导入凭证后，已设置的 `SUPERUN_PAT` 仍优先；要使用新保存的凭证，请先 `unset SUPERUN_PAT`。CLI 不会自动读取 superun-ai 的凭证文件。业务 PAT 与国内预发网关使用的 `PRIVATE_TOKEN` / `PRIVATE-TOKEN` 不同，二者独立配置。

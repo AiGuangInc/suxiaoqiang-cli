@@ -1,8 +1,9 @@
 import Conf from 'conf';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
-import type { GlobalConfig, ProjectConfig } from '../types/index.js';
+import { existsSync, chmodSync } from 'node:fs';
+import { validatePat } from './pat.js';
+import type { GlobalConfig, ProjectConfig, UpdatePolicyCache } from '../types/index.js';
 
 /** 项目本地元数据目录，config.json 存关联信息，后续附件版本等数据也存放于此 */
 const SXQ_DIR = '.sxq';
@@ -12,6 +13,7 @@ export const DEFAULT_PUSH_BRANCH = 'main';
 /** 全局配置存储 */
 const globalConf = new Conf<GlobalConfig>({
   projectName: 'suxiaoqiang-cli',
+  configFileMode: 0o600,
   defaults: {
     apiBase: 'https://www.superun.com',
   },
@@ -20,10 +22,12 @@ const globalConf = new Conf<GlobalConfig>({
 // ─── 全局配置 ─────────────────────────────────────────────
 
 export function getToken(): string | undefined {
+  if (process.env.SUPERUN_PAT !== undefined) return validatePat(process.env.SUPERUN_PAT);
   return globalConf.get('token');
 }
 
 export function setToken(token: string): void {
+  if (existsSync(globalConf.path)) chmodSync(globalConf.path, 0o600);
   globalConf.set('token', token);
 }
 
@@ -81,12 +85,12 @@ export function deleteLang(): void {
   globalConf.delete('lang');
 }
 
-export function getLastUpdateCheckAt(): number | undefined {
-  return globalConf.get('lastUpdateCheckAt');
+export function getUpdatePolicyCache(): UpdatePolicyCache | undefined {
+  return globalConf.get('updatePolicyCache');
 }
 
-export function setLastUpdateCheckAt(value: number): void {
-  globalConf.set('lastUpdateCheckAt', value);
+export function setUpdatePolicyCache(value: UpdatePolicyCache): void {
+  globalConf.set('updatePolicyCache', value);
 }
 
 export function getTsid(): string | undefined {

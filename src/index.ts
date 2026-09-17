@@ -1,4 +1,5 @@
 import { Command, Option } from 'commander';
+import { spawn } from 'node:child_process';
 import { loginCommand } from './commands/login.js';
 import { linkCommand } from './commands/link.js';
 import { pullCommand } from './commands/pull.js';
@@ -17,7 +18,7 @@ import {
   pluginStatusCommand,
 } from './commands/plugin.js';
 import { upgradeCommand } from './commands/upgrade.js';
-import { maybeNotifyNewVersion } from './lib/update-check.js';
+import { checkUpdatePolicy } from './lib/update-check.js';
 import {
   configSetCommand,
   configGetCommand,
@@ -26,6 +27,7 @@ import {
 } from './commands/config.js';
 import { setDebug } from './lib/debug.js';
 import { t } from './lib/i18n.js';
+import { logger } from './lib/logger.js';
 import { visibleConfigKeys } from './commands/config.js';
 import { version } from '../package.json';
 
@@ -35,6 +37,25 @@ process.stdout.on('error', (error: NodeJS.ErrnoException) => {
 });
 
 const program = new Command();
+const AUTO_UPGRADE_RESTARTED_ENV = 'SXQ_AUTO_UPGRADE_RESTARTED';
+
+async function rerunCurrentCommand(cliEntryPath: string): Promise<never> {
+  const exitCode = await new Promise<number>((resolve) => {
+    const child = spawn(process.execPath, [cliEntryPath, ...process.argv.slice(2)], {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        [AUTO_UPGRADE_RESTARTED_ENV]: '1',
+      },
+    });
+    child.on('close', (code) => resolve(code ?? 1));
+    child.on('error', (error) => {
+      logger.error(t('upgrade.restartFailed', { detail: error.message }));
+      resolve(1);
+    });
+  });
+  process.exit(exitCode);
+}
 
 program
   .name('sxq')
@@ -46,9 +67,18 @@ program
     if (opts.debug) {
       setDebug(true);
     }
-    // 每日首条命令时提示新版本；upgrade 自己不用提示
+    // upgrade 必须始终可用；其他命令每天首次检查，命中强更则升级后重跑原命令。
     if (actionCommand.name() !== 'upgrade') {
-      await maybeNotifyNewVersion();
+      const requiredVersion = await checkUpdatePolicy();
+      if (requiredVersion) {
+        if (process.env[AUTO_UPGRADE_RESTARTED_ENV] === '1') {
+          logger.error(t('upgrade.restartOutdated', { required: requiredVersion }));
+          process.exit(1);
+        }
+        logger.warn(t('upgrade.requiredAuto', { current: version, required: requiredVersion }));
+        const result = await upgradeCommand({ minimumVersion: requiredVersion });
+        await rerunCurrentCommand(result.cliEntryPath);
+      }
     }
   });
 
@@ -58,8 +88,10 @@ program
   .command('login')
   .description(t('cmd.login'))
   .option('-y, --yes', t('cmd.loginYes'))
-  .option('--token <token>', t('cmd.loginToken'))
-  .action(async (options: { yes?: boolean; token?: string }) => {
+  .addOption(new Option('--token <token>', t('cmd.loginToken')).conflicts(['pat', 'stdin']))
+  .addOption(new Option('--pat', t('cmd.loginPat')).conflicts('stdin'))
+  .option('--stdin', t('cmd.loginStdin'))
+  .action(async (options: { yes?: boolean; token?: string; pat?: boolean; stdin?: boolean }) => {
     await loginCommand(options);
   });
 
@@ -273,4 +305,5 @@ plugin.command('disable')
 
 // ─── 解析 ─────────────────────────────────────────────────
 
-program.parse();
+// preAction 和各命令均可能异步；必须等待 hook 完成，强更门禁才能先于命令执行。
+await program.parseAsync();

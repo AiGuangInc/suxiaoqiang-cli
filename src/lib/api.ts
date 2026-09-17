@@ -44,8 +44,8 @@ async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
 }
 
 /** 通用请求方法 */
-async function request<T>(path: string, body: Record<string, unknown>): Promise<ApiResponse<T>> {
-  const token = getToken();
+async function request<T>(path: string, body: Record<string, unknown>, credential?: string): Promise<ApiResponse<T>> {
+  const token = credential ?? getToken();
   if (!token) {
     logger.error(t('api.notLoggedIn'));
     process.exit(1);
@@ -92,6 +92,7 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     headers,
     body: JSON.stringify(body),
     redirect: 'manual',
+    ...(credential ? { signal: AbortSignal.timeout(60000) } : {}),
   });
 
   debug('Response Status', `${res.status} ${res.statusText}`);
@@ -185,6 +186,14 @@ async function requestGet<T>(path: string, params: Record<string, unknown>): Pro
   return json;
 }
 
+/** 使用浏览器临时凭证签发 PAT；不落盘临时 token，也不重试签发。 */
+export async function createPersonalAccessToken(credential: string): Promise<string> {
+  const response = await request<string>(
+    '/api/uxa-center/support/PersonalAccessToken/create', {}, credential
+  );
+  return response.data;
+}
+
 /** CLI 登录 token 轮询（免鉴权，服务端取到后即删，token 未就绪时返回空） */
 export async function pollCliToken(uuid: string): Promise<string | null> {
   const apiBase = getApiBase();
@@ -196,11 +205,22 @@ export async function pollCliToken(uuid: string): Promise<string | null> {
     headers['Cookie'] = `TSID=${tsid}`;
   }
 
+  const isCnPre = new URL(apiBase).hostname === 'superun.pre.qima-inc.com';
+  const privateToken = isCnPre ? getPrivateToken() : undefined;
+  if (privateToken) headers['PRIVATE-TOKEN'] = privateToken;
+  const serviceChain = getServiceChain();
+  if (serviceChain) headers['x-service-chain'] = serviceChain;
+
   const res = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({ uuid }),
+    redirect: 'manual',
+    signal: AbortSignal.timeout(15000),
   });
+  if (res.status >= 300 && res.status < 400 && isCnPre) {
+    throw new Error(t(privateToken ? 'api.privateTokenInvalid' : 'api.privateTokenRequired'));
+  }
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '');
@@ -395,11 +415,13 @@ export async function queryCloudLogs(params: CloudLogQueryParams): Promise<Cloud
 
 /** 分页查询当前账号的会话（keyword 精确匹配 sessionId；接口校验登录，可用于归属校验） */
 export async function pageQuerySessionByLastId(
-  params: PageQuerySessionParams
+  params: PageQuerySessionParams,
+  credential?: string
 ): Promise<PageResult<SessionInfo>> {
   const response = await request<PageResult<SessionInfo>>(
     '/api/uxa-center/agent/AgentQuery/pageQuerySessionByLastId',
-    params as unknown as Record<string, unknown>
+    params as unknown as Record<string, unknown>,
+    credential
   );
   return response.data;
 }

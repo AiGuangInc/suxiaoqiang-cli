@@ -4,6 +4,16 @@ export type Lang = 'zh' | 'en';
 
 /** 中文文案（键的权威来源，新增文案先加这里） */
 const zh = {
+  'cmd.loginPat': '隐藏输入已有 PAT',
+  'cmd.loginStdin': '从标准输入读取 PAT',
+  'login.invalidPat': '请输入以 sup_pat_ 开头的有效 PAT',
+  'login.emptyToken': 'token 不能为空',
+  'login.patPrompt': '请输入 PAT（输入不显示）',
+  'login.patTooLong': 'PAT 输入过长',
+  'login.patNeedsTty': '非终端输入请使用 sxq login --stdin',
+  'login.envUsed': '已校验并使用 SUPERUN_PAT（不写入本地配置）',
+  'login.envOverride': 'SUPERUN_PAT 仍优先于本地凭证；使用新凭证前请 unset SUPERUN_PAT',
+
   // ── 通用 ──────────────────────────────────────────────
   'common.notLinked': '当前目录未关联项目，请先执行 sxq link <sessionId>',
   'common.currentSession': '当前关联 session: {sessionId}',
@@ -62,7 +72,7 @@ const zh = {
   'login.success': '登录成功',
   'login.tokenSaved': '凭证已安全保存',
   'login.timeout': '授权超时，请重新执行 sxq login',
-  'login.timeoutTokenHint': '浏览器授权不可用时，也可以使用 sxq login --token <token> 直接登录',
+  'login.timeoutTokenHint': '浏览器授权不可用时，可用 sxq login --pat 隐藏输入 PAT，或用 --stdin 从标准输入导入',
   'login.failed': '登录失败',
 
   // ── link ──────────────────────────────────────────────
@@ -73,6 +83,7 @@ const zh = {
   'link.checkingSyncPermission': '正在校验代码同步权限...',
   'link.verifying': '正在校验 session 归属...',
   'link.notOwned': '未找到 session {sessionId}，或当前登录账号无权访问',
+  'link.stageTooEarly': '项目阶段需至少为 2（演示）才能关联，请先在 Superun 完成样式选择后重试',
   'link.linking': '正在关联项目...',
   'link.success': '项目已关联: {sessionId}',
   'link.topicLabel': '  主题: {topic}',
@@ -181,6 +192,9 @@ const zh = {
   'upgrade.updateSkill': '请更新 skill：{url}',
   'upgrade.failed': '升级失败，可手动执行: npm install -g {pkg}@latest',
   'upgrade.available': '发现新版本 v{latest}（当前 v{current}），运行 sxq upgrade 升级',
+  'upgrade.requiredAuto': '当前 sxq v{current} 低于最低可用版本 v{required}，将先自动升级再继续执行原命令',
+  'upgrade.restartFailed': '升级完成，但无法重新执行原命令: {detail}',
+  'upgrade.restartOutdated': '自动升级后版本仍低于最低要求 v{required}，请手动执行 npm install -g suxiaoqiang-cli@latest',
 
   // ── config ────────────────────────────────────────────
   'config.unsupportedKey': '不支持的配置项: {key}（支持: {keys}）',
@@ -287,6 +301,16 @@ const zh = {
 export type MessageKey = keyof typeof zh;
 
 const en: Record<MessageKey, string> = {
+  'cmd.loginPat': 'Enter an existing PAT with hidden input',
+  'cmd.loginStdin': 'Read a PAT from standard input',
+  'login.invalidPat': 'Enter a valid PAT starting with sup_pat_',
+  'login.emptyToken': 'Token must not be empty',
+  'login.patPrompt': 'Enter PAT (input hidden)',
+  'login.patTooLong': 'PAT input is too long',
+  'login.patNeedsTty': 'For non-terminal input, use sxq login --stdin',
+  'login.envUsed': 'Validated SUPERUN_PAT; using it without saving locally',
+  'login.envOverride': 'SUPERUN_PAT still overrides the saved credential; unset SUPERUN_PAT to use the new credential',
+
   'common.notLinked': 'Current directory is not linked to a project. Run sxq link <sessionId> first',
   'common.currentSession': 'Linked session: {sessionId}',
   'common.serverFalse': 'Server returned failure (data: false)',
@@ -340,7 +364,7 @@ const en: Record<MessageKey, string> = {
   'login.success': 'Logged in',
   'login.tokenSaved': 'Credential saved securely',
   'login.timeout': 'Authorization timed out. Run sxq login again',
-  'login.timeoutTokenHint': 'If browser authorization is unavailable, you can also log in directly with sxq login --token <token>',
+  'login.timeoutTokenHint': 'If browser authorization is unavailable, use sxq login --pat for hidden PAT input or --stdin to import from standard input',
   'login.failed': 'Login failed',
 
   'link.needSessionId': 'Please provide a sessionId, e.g. sxq link <sessionId>',
@@ -350,6 +374,7 @@ const en: Record<MessageKey, string> = {
   'link.checkingSyncPermission': 'Checking code sync permission...',
   'link.verifying': 'Verifying session ownership...',
   'link.notOwned': 'Session {sessionId} was not found or the current account cannot access it',
+  'link.stageTooEarly': 'The project must be at stage 2 (demo) or later to link. Complete style selection in Superun, then retry',
   'link.linking': 'Linking project...',
   'link.success': 'Project linked: {sessionId}',
   'link.topicLabel': '  Topic: {topic}',
@@ -451,6 +476,9 @@ const en: Record<MessageKey, string> = {
   'upgrade.updateSkill': 'Please update the skill: {url}',
   'upgrade.failed': 'Upgrade failed. Run manually: npm install -g {pkg}@latest',
   'upgrade.available': 'New version v{latest} available (current v{current}). Run sxq upgrade to update',
+  'upgrade.requiredAuto': 'sxq v{current} is below the minimum allowed version v{required}; it will upgrade automatically before continuing the original command',
+  'upgrade.restartFailed': 'Upgrade completed, but the original command could not be restarted: {detail}',
+  'upgrade.restartOutdated': 'The version is still below the required v{required} after auto-upgrade. Run npm install -g suxiaoqiang-cli@latest manually',
 
   'config.unsupportedKey': 'Unsupported config key: {key} (supported: {keys})',
   'config.set': 'Set {key} = {value}',

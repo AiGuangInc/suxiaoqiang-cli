@@ -45,6 +45,10 @@ export async function linkCommand(sessionId: string, options: LinkOptions = {}):
       process.exit(1);
     }
 
+    if (typeof session.stage !== 'number' || !Number.isFinite(session.stage) || session.stage < 2) {
+      throw new Error(t('link.stageTooEarly'));
+    }
+
     spinner.text = t('link.linking');
     await setProjectConfig({
       sessionId,

@@ -429,6 +429,16 @@ export interface ProjectConfig {
   session?: SessionInfo;
 }
 
+/** npm dist-tags 返回的 CLI 升级策略本地缓存。 */
+export interface UpdatePolicyCache {
+  /** 最近一次尝试刷新策略的时间（毫秒时间戳）。 */
+  checkedAt: number;
+  /** npm 的 latest dist-tag。 */
+  latestVersion?: string;
+  /** npm 的 required dist-tag，低于此版本时禁止继续执行命令。 */
+  requiredVersion?: string;
+}
+
 /** 全局配置 */
 export interface GlobalConfig {
   token?: string;
@@ -440,6 +450,6 @@ export interface GlobalConfig {
   tsid?: string;
   /** 界面语言 zh/en，未设置时按环境变量自动检测 */
   lang?: string;
-  /** 上次检查新版本的时间（毫秒时间戳），每日提示用 */
-  lastUpdateCheckAt?: number;
+  /** CLI 升级策略缓存；网络异常时继续沿用已知的强制升级下限。 */
+  updatePolicyCache?: UpdatePolicyCache;
 }

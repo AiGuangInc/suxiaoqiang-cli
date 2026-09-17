@@ -18,13 +18,21 @@ operation. In particular, never add `-y` to `sxq push` before reviewing its add/
 
 ## Prerequisites
 
-- `sxq login` requires a browser and must be done by the user. If any command reports
+- `sxq login` obtains a `sup_pat_` PAT after browser authorization. `SUPERUN_PAT` overrides the
+  saved credential for all API calls; with it set, login only validates it without opening a
+  browser or saving it. Empty or malformed environment values fail explicitly. Manual PAT
+  import supports hidden input (`sxq login --pat`) and stdin (`sxq login --stdin`), with online
+  validation before saving. Existing `--token` credentials remain supported. Business PATs
+  are separate from the domestic pre-release gateway `PRIVATE_TOKEN`.
+- Browser-based `sxq login` requires a browser and must be done by the user. If any command reports
   "Not logged in / 未登录" or "credential expired / 凭证无效", ask the user to run `sxq login`
   themselves — do not attempt it. Exception: if the user hands you a token, run
   `sxq login --token <token>` (it validates the token and keeps the previous credential on
   failure). Never ask the user to paste a token proactively.
 - A project directory is bound via `.sxq/config.json` (created by `sxq link`). Check for it
   before assuming a directory is linked.
+- `sxq link` requires stage 2 (demo) or later. Complete style selection in Superun first;
+  a missing, invalid, or earlier stage is rejected before changing the local binding.
 
 ## Core workflow
 
@@ -61,6 +69,10 @@ sxq deploy --status         # read-only: pending/published versions + live URL
   pushing. `-f` only ignores configured/manifest branch restrictions.
 - `sxq config set|get|unset|list` — keys: `host` (API base URL), `lang` (`zh`/`en`), and the
   project-level `push-branch` (defaults to `main`).
+- The CLI reads npm dist-tags on the first command each day and uses its local cache afterward. If
+  the installed version is below the maintainer's `required` tag, it upgrades itself through npm and
+  then re-runs the original command with the new CLI. `sxq upgrade`, `--version`, and `--help` remain
+  directly available. A cached mandatory policy remains enforced during registry outages.
 - `--debug` on any command prints full request/response logs (tokens masked) — use it when
   diagnosing failures.
 
@@ -204,7 +216,11 @@ plugin, or documentation publication.
 3. Publish npm only after GitHub succeeds: run `npm publish --access public`, then require
    `npm view suxiaoqiang-cli version` to equal the intended CLI version. Install that exact version
    in an isolated location and exercise the changed CLI behavior; a successful build alone is not
-   release acceptance.
+   release acceptance. Setting or raising the `required` dist-tag is a separate external mutation:
+   do it only when the user explicitly authorizes forcing that exact, already-verified version, then
+   verify `npm view suxiaoqiang-cli dist-tags --json`. Remove the tag to disable mandatory upgrades.
+   The first release containing this gate must be rolled out normally before relying on the tag;
+   already-published older clients cannot be changed retroactively.
 4. Publish the user-facing skill/CLI documentation last, using fresh branches from each docs
    repository's latest `origin/main`:
    - main site (`docs.superun.com`): repository `vijayqian-sys/superun`, update
