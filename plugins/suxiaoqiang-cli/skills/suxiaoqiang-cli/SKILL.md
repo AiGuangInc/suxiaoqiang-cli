@@ -24,6 +24,17 @@ operation. In particular, never add `-y` to `sxq push` before reviewing its add/
   import supports hidden input (`sxq login --pat`) and stdin (`sxq login --stdin`), with online
   validation before saving. Existing `--token` credentials remain supported. Business PATs
   are separate from the domestic pre-release gateway `PRIVATE_TOKEN`.
+- Login credentials use the system credential store by default. On headless Linux without session
+  D-Bus, they use a local plaintext file (Unix mode 0600) with a warning; locked or failing system
+  stores stop the command instead of silently downgrading. Only the selected store is read or
+  written, scoped by API base URL. An empty system store does not trigger file fallback. There is no credential migration
+  or old-token import: if no credential is present, the user logs in again. Selecting a usable system
+  store deletes the current host’s plaintext login token and the old login token field, even when
+  the system store is empty.
+  `SUPERUN_PAT` bypasses both stores. Linux system storage requires Secret Service and session D-Bus;
+  native bindings require npm optional dependencies. `sxq logout` clears only the selected store for
+  the current host (including plaintext cleanup when the system store is usable), not the server PAT
+  or environment variable. It bypasses upgrade gates.
 - Browser-based `sxq login` requires a browser and must be done by the user. If any command reports
   "Not logged in / 未登录" or "credential expired / 凭证无效", ask the user to run `sxq login`
   themselves — do not attempt it. Exception: if the user hands you a token, run

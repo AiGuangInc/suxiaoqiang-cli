@@ -1,6 +1,7 @@
 import { Command, Option } from 'commander';
 import { spawn } from 'node:child_process';
 import { loginCommand } from './commands/login.js';
+import { logoutCommand } from './commands/logout.js';
 import { linkCommand } from './commands/link.js';
 import { pullCommand } from './commands/pull.js';
 import { pushCommand } from './commands/push.js';
@@ -67,8 +68,8 @@ program
     if (opts.debug) {
       setDebug(true);
     }
-    // upgrade 必须始终可用；其他命令每天首次检查，命中强更则升级后重跑原命令。
-    if (actionCommand.name() !== 'upgrade') {
+    // 升级和退出登录必须始终可用；其他命令每天首次检查升级策略。
+    if (!['upgrade', 'logout'].includes(actionCommand.name())) {
       const requiredVersion = await checkUpdatePolicy();
       if (requiredVersion) {
         if (process.env[AUTO_UPGRADE_RESTARTED_ENV] === '1') {
@@ -94,6 +95,10 @@ program
   .action(async (options: { yes?: boolean; token?: string; pat?: boolean; stdin?: boolean }) => {
     await loginCommand(options);
   });
+
+program.command('logout')
+  .description(t('cmd.logout'))
+  .action(logoutCommand);
 
 // ─── sxq link ────────────────────────────────────────────
 
@@ -306,4 +311,7 @@ plugin.command('disable')
 // ─── 解析 ─────────────────────────────────────────────────
 
 // preAction 和各命令均可能异步；必须等待 hook 完成，强更门禁才能先于命令执行。
-await program.parseAsync();
+await program.parseAsync().catch((error: Error) => {
+  logger.error(error.message);
+  process.exitCode = 1;
+});

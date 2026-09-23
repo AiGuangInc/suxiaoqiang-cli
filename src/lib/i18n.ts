@@ -4,6 +4,16 @@ export type Lang = 'zh' | 'en';
 
 /** 中文文案（键的权威来源，新增文案先加这里） */
 const zh = {
+  'credential.unavailable': '系统凭证库不可用，且当前环境没有明文备用凭证。请重新登录，或使用 SUPERUN_PAT。',
+  'credential.plaintextFallback': '系统凭证库不可用，已回退到本地明文凭证文件（Unix 权限 0600）；同账号程序仍可读取。',
+  'credential.fileFailed': '无法保存或清理本地凭证文件，请检查文件权限和磁盘空间后重试。',
+  'login.tokenSavedPlaintext': '凭证已保存到本地明文文件',
+  'credential.saveFailed': '无法写入或读回系统凭证库。请解锁或启用凭证库后重试；无桌面环境可使用 SUPERUN_PAT。未将新凭证写入配置文件。',
+  'credential.deleteFailed': '无法删除系统凭证库中的凭证，请解锁或启用凭证库后重新执行 sxq logout。',
+  'cmd.logout': '删除当前 API 环境的本地登录凭证（不撤销服务端 PAT）',
+  'logout.success': '当前 API 环境的系统凭证库凭证已删除；服务端 PAT 未撤销',
+  'logout.localSuccess': '当前 API 环境的本地文件凭证已删除；系统凭证库不可用，未操作其中的凭证；服务端 PAT 未撤销',
+  'logout.envOverride': 'SUPERUN_PAT 仍在环境变量中生效，请执行 unset SUPERUN_PAT 后再测试退出状态',
   'cmd.loginPat': '隐藏输入已有 PAT',
   'cmd.loginStdin': '从标准输入读取 PAT',
   'login.invalidPat': '请输入以 sup_pat_ 开头的有效 PAT',
@@ -70,7 +80,7 @@ const zh = {
   'login.openBrowser': '即将打开浏览器完成授权，如未自动打开请手动访问：',
   'login.waiting': '等待浏览器授权...',
   'login.success': '登录成功',
-  'login.tokenSaved': '凭证已安全保存',
+  'login.tokenSaved': '凭证已保存到系统凭证库',
   'login.timeout': '授权超时，请重新执行 sxq login',
   'login.timeoutTokenHint': '浏览器授权不可用时，可用 sxq login --pat 隐藏输入 PAT，或用 --stdin 从标准输入导入',
   'login.failed': '登录失败',
@@ -301,6 +311,16 @@ const zh = {
 export type MessageKey = keyof typeof zh;
 
 const en: Record<MessageKey, string> = {
+  'credential.unavailable': 'The system credential store is unavailable and this environment has no plaintext fallback credential. Log in again or use SUPERUN_PAT.',
+  'credential.plaintextFallback': 'System credential store unavailable; using a local plaintext credential file (Unix mode 0600). Programs running as your account can still read it.',
+  'credential.fileFailed': 'Cannot save or clean up the local credential file. Check file permissions and disk space, then retry.',
+  'login.tokenSavedPlaintext': 'Credential saved in a local plaintext file',
+  'credential.saveFailed': 'Cannot write to or read back from the system credential store. Unlock or enable it and retry, or use SUPERUN_PAT in a headless environment. The new credential was not written to the config file.',
+  'credential.deleteFailed': 'Cannot delete the saved credential. Unlock or enable the system credential store, then run sxq logout again.',
+  'cmd.logout': 'Delete the local login credential for the current API environment (does not revoke the server PAT)',
+  'logout.success': 'System-store credential deleted for the current API environment; the server PAT was not revoked',
+  'logout.localSuccess': 'Local-file credential deleted for the current API environment; the unavailable system store was not changed and the server PAT was not revoked',
+  'logout.envOverride': 'SUPERUN_PAT is still active in the environment. Run unset SUPERUN_PAT before checking the logged-out state',
   'cmd.loginPat': 'Enter an existing PAT with hidden input',
   'cmd.loginStdin': 'Read a PAT from standard input',
   'login.invalidPat': 'Enter a valid PAT starting with sup_pat_',
@@ -362,7 +382,7 @@ const en: Record<MessageKey, string> = {
   'login.openBrowser': 'Opening browser for authorization. If it does not open, visit:',
   'login.waiting': 'Waiting for browser authorization...',
   'login.success': 'Logged in',
-  'login.tokenSaved': 'Credential saved securely',
+  'login.tokenSaved': 'Credential saved in the system credential store',
   'login.timeout': 'Authorization timed out. Run sxq login again',
   'login.timeoutTokenHint': 'If browser authorization is unavailable, use sxq login --pat for hidden PAT input or --stdin to import from standard input',
   'login.failed': 'Login failed',

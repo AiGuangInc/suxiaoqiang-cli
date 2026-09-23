@@ -441,7 +441,10 @@ export interface UpdatePolicyCache {
 
 /** 全局配置 */
 export interface GlobalConfig {
+  /** Old plaintext login token: delete when the system store is usable, never import. */
   token?: string;
+  /** Local-file credentials used only when the system credential store is unavailable. */
+  localTokens?: Record<string, string>;
   apiBase: string;
   serviceChain?: string;
   /** 国内预发代理 PAT；优先读取 PRIVATE_TOKEN 环境变量 */
