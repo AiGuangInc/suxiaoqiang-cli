@@ -5,8 +5,6 @@ on:
   push:
     branches: [main]
     paths:
-      - package.json
-      - package-lock.json
       - .github/release.json
 
 permissions:
@@ -119,7 +117,7 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             git fetch origin "refs/tags/$tag:refs/tags/$tag"
             if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
-              echo "$tag points to a different commit" >&2
+              echo "$tag points to a different commit. Retry the original workflow, or bump the version in a new release PR." >&2
               exit 1
             fi
           fi
@@ -138,7 +136,7 @@ jobs:
           fi
           git fetch origin "refs/tags/$tag:refs/tags/$tag"
           if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
-            echo "$tag does not point to the release commit" >&2
+            echo "$tag does not point to the release commit. Retry the original workflow, or bump the version in a new release PR." >&2
             exit 1
           fi
       - name: Publish with npm trusted publisher
@@ -149,12 +147,15 @@ jobs:
         env:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
-          for attempt in 1 2 3 4 5 6; do
-            published=$(npm view "suxiaoqiang-cli@$VERSION" version --json 2>/dev/null || true)
+          for attempt in 1 2 3 4 5 6 7 8; do
+            published=$(npm --cache "$RUNNER_TEMP/npm-view-$attempt" --prefer-online \
+              view "suxiaoqiang-cli@$VERSION" version --json 2>/dev/null || true)
             if [ "$published" = "\"$VERSION\"" ]; then
               exit 0
             fi
-            sleep 5
+            if [ "$attempt" -lt 8 ]; then
+              sleep 45
+            fi
           done
           echo "npm did not report suxiaoqiang-cli@$VERSION" >&2
           exit 1
