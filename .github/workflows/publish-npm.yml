@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/release.json
 
 permissions:
   contents: read
