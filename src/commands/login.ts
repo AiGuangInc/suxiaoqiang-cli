@@ -8,6 +8,7 @@ import { confirm } from '../lib/prompt.js';
 import { isDebug } from '../lib/debug.js';
 import { t } from '../lib/i18n.js';
 import { openBrowser } from '../lib/browser.js';
+import { CredentialStoreError } from '../lib/credential-store.js';
 
 /** 轮询间隔与总超时 */
 const POLL_INTERVAL_MS = 2000;
@@ -32,12 +33,12 @@ async function loginWithToken(token: string): Promise<void> {
   try {
     // 该接口按登录账号返回数据且校验凭证，仅用于验证 token 可用
     await pageQuerySessionByLastId({ pageSize: 1 }, token);
-    setToken(token);
+    const storage = await setToken(token);
     spinner.succeed(t('login.success'));
-    logger.success(t('login.tokenSaved'));
+    logger.success(t(storage === 'keyring' ? 'login.tokenSaved' : 'login.tokenSavedPlaintext'));
     if (process.env.SUPERUN_PAT !== undefined) logger.info(t('login.envOverride'));
   } catch (error) {
-    spinner.fail(t('login.tokenInvalid'));
+    spinner.fail(t(error instanceof CredentialStoreError ? 'login.failed' : 'login.tokenInvalid'));
     logger.error((error as Error).message);
     if (isDebug()) {
       console.error((error as Error).stack);
@@ -65,7 +66,7 @@ export async function loginCommand(options: LoginOptions = {}): Promise<void> {
     return;
   }
 
-  const existing = getToken();
+  const existing = await getToken();
   if (existing && !options.yes) {
     const overwrite = await confirm(t('login.reloginConfirm'), t('login.reloginHint'));
     if (!overwrite) {
@@ -90,9 +91,9 @@ export async function loginCommand(options: LoginOptions = {}): Promise<void> {
       const token = await pollCliToken(uuid);
       if (token) {
         const pat = validatePat(await createPersonalAccessToken(token));
-        setToken(pat);
+        const storage = await setToken(pat);
         spinner.succeed(t('login.success'));
-        logger.success(t('login.tokenSaved'));
+        logger.success(t(storage === 'keyring' ? 'login.tokenSaved' : 'login.tokenSavedPlaintext'));
         return;
       }
     }

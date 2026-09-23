@@ -3,6 +3,8 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync, chmodSync } from 'node:fs';
 import { validatePat } from './pat.js';
+import { readCredential, writeCredential, deleteCredential, CredentialStoreError, CredentialStoreUnavailableError } from './credential-store.js';
+import { t } from './i18n.js';
 import type { GlobalConfig, ProjectConfig, UpdatePolicyCache } from '../types/index.js';
 
 /** 项目本地元数据目录，config.json 存关联信息，后续附件版本等数据也存放于此 */
@@ -21,18 +23,89 @@ const globalConf = new Conf<GlobalConfig>({
 
 // ─── 全局配置 ─────────────────────────────────────────────
 
-export function getToken(): string | undefined {
+type CredentialStorage = 'keyring' | 'plaintext';
+type SavedCredential = { storage: CredentialStorage; token?: string };
+const credentials = new Map<string, Promise<SavedCredential>>();
+
+function credentialKey(apiBase: string): string {
+  return new URL(apiBase).href.replace(/\/+$/, '');
+}
+
+function writeLocalToken(apiBase: string, token?: string): void {
+  try {
+    const tokens = { ...globalConf.get('localTokens') };
+    const key = credentialKey(apiBase);
+    if (token === undefined) delete tokens[key];
+    else tokens[key] = token;
+    if (existsSync(globalConf.path)) chmodSync(globalConf.path, 0o600);
+    const { token: _legacyToken, ...config } = globalConf.store;
+    globalConf.store = { ...config, localTokens: tokens };
+  } catch {
+    throw new CredentialStoreError(t('credential.fileFailed'));
+  }
+}
+
+function removePlaintextToken(apiBase: string): void {
+  const key = credentialKey(apiBase);
+  if (!globalConf.has('token') && !Object.hasOwn(globalConf.get('localTokens') ?? {}, key)) return;
+  try {
+    if (existsSync(globalConf.path)) chmodSync(globalConf.path, 0o600);
+    const tokens = { ...globalConf.get('localTokens') };
+    delete tokens[key];
+    const { token: _legacyToken, ...config } = globalConf.store;
+    globalConf.store = { ...config, localTokens: tokens };
+  } catch {
+    throw new CredentialStoreError(t('credential.fileFailed'));
+  }
+}
+
+function savedCredential(apiBase: string): Promise<SavedCredential> {
+  let selected = credentials.get(apiBase);
+  if (!selected) {
+    selected = (async (): Promise<SavedCredential> => {
+      let token: string | undefined;
+      try {
+        // A missing credential is not an unavailable store: ask the user to log in.
+        token = await readCredential(apiBase);
+      } catch (error) {
+        if (!(error instanceof CredentialStoreUnavailableError)) throw error;
+        console.error(t('credential.plaintextFallback'));
+        return { storage: 'plaintext', token: globalConf.get('localTokens')?.[credentialKey(apiBase)] };
+      }
+      // Discard plaintext once the system store is usable; never import it into the keyring.
+      // A cleanup error must not select plaintext storage again.
+      removePlaintextToken(apiBase);
+      return { storage: 'keyring', token };
+    })().catch((error) => {
+      credentials.delete(apiBase);
+      throw error;
+    });
+    credentials.set(apiBase, selected);
+  }
+  return selected;
+}
+
+export async function getToken(): Promise<string | undefined> {
   if (process.env.SUPERUN_PAT !== undefined) return validatePat(process.env.SUPERUN_PAT);
-  return globalConf.get('token');
+  return (await savedCredential(getApiBase())).token;
 }
 
-export function setToken(token: string): void {
-  if (existsSync(globalConf.path)) chmodSync(globalConf.path, 0o600);
-  globalConf.set('token', token);
+export async function setToken(token: string): Promise<CredentialStorage> {
+  const apiBase = getApiBase();
+  const { storage } = await savedCredential(apiBase);
+  if (storage === 'keyring') await writeCredential(apiBase, token);
+  else writeLocalToken(apiBase, token);
+  credentials.set(apiBase, Promise.resolve({ storage, token }));
+  return storage;
 }
 
-export function clearToken(): void {
-  globalConf.delete('token');
+export async function clearToken(): Promise<CredentialStorage> {
+  const apiBase = getApiBase();
+  const { storage } = await savedCredential(apiBase);
+  if (storage === 'keyring') await deleteCredential(apiBase);
+  else writeLocalToken(apiBase);
+  credentials.set(apiBase, Promise.resolve({ storage }));
+  return storage;
 }
 
 export function getApiBase(): string {
@@ -40,11 +113,12 @@ export function getApiBase(): string {
 }
 
 export function setApiBase(url: string): void {
+  credentials.clear();
   globalConf.set('apiBase', url);
 }
 
 export function deleteApiBase(): void {
-  // 删除后 get 会回落到 defaults 中的默认 host
+  credentials.clear();
   globalConf.delete('apiBase');
 }
 

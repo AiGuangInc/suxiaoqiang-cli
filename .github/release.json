@@ -1,0 +1,4 @@
+{
+  "version": "1.1.2",
+  "notes": "### Changes\n- Store login credentials in the operating system credential store, isolated by API host.\n- On headless Linux without session D-Bus, use a local file with a warning; fail closed when a system store is locked or errors. Clear legacy plaintext credentials when the system store is usable.\n- Add `sxq logout` to delete the current host's saved credential without revoking the server PAT.\n- Update English and Chinese CLI guidance and the plugin skill source for the new credential behavior."
+}

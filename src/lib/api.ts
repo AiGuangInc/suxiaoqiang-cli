@@ -45,7 +45,7 @@ async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
 
 /** 通用请求方法 */
 async function request<T>(path: string, body: Record<string, unknown>, credential?: string): Promise<ApiResponse<T>> {
-  const token = credential ?? getToken();
+  const token = credential ?? await getToken();
   if (!token) {
     logger.error(t('api.notLoggedIn'));
     process.exit(1);
@@ -134,7 +134,7 @@ async function request<T>(path: string, body: Record<string, unknown>, credentia
 
 /** Web BFF 的 GET 接口也使用统一 ApiResponse 外壳。 */
 async function requestGet<T>(path: string, params: Record<string, unknown>): Promise<ApiResponse<T>> {
-  const token = getToken();
+  const token = await getToken();
   if (!token) {
     logger.error(t('api.notLoggedIn'));
     process.exit(1);
