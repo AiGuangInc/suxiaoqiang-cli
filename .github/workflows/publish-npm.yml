@@ -1,0 +1,171 @@
+name: Build and publish npm
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - .github/release.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    outputs:
+      release_requested: ${{ steps.release.outputs.requested }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Validate release request and package versions
+        id: release
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { existsSync, readFileSync, appendFileSync } from 'node:fs';
+
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          if (pkg.name !== 'suxiaoqiang-cli' || lock.name !== pkg.name ||
+              lock.packages[''].name !== pkg.name || lock.version !== pkg.version ||
+              lock.packages[''].version !== pkg.version) {
+            throw new Error('package.json and package-lock.json must have the same package name and version');
+          }
+          if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pkg.version)) {
+            throw new Error('Package version must be a valid release version');
+          }
+
+          const releasePath = '.github/release.json';
+          const hasRequest = existsSync(releasePath);
+          if (process.env.BASE_SHA) {
+            const base = JSON.parse(execFileSync('git', ['show', `${process.env.BASE_SHA}:package.json`], { encoding: 'utf8' }));
+            if (base.version !== pkg.version && !hasRequest) {
+              throw new Error('A version change requires .github/release.json in the release PR');
+            }
+          }
+          if (hasRequest) {
+            const request = JSON.parse(readFileSync(releasePath, 'utf8'));
+            if (request.version !== pkg.version || typeof request.notes !== 'string' || !request.notes.trim()) {
+              throw new Error('.github/release.json must contain the package version and nonempty release notes');
+            }
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `requested=${hasRequest}\nversion=${pkg.version}\n`);
+          NODE
+      - run: npm ci
+      - run: npm run build
+      - run: npm pack --dry-run
+
+  publish:
+    name: Publish npm
+    if: github.event_name == 'push' && needs.build.outputs.release_requested == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Ensure npm supports trusted publishing
+        run: npm install --global npm@^11.5.1
+      - name: Check whether this version is already published
+        id: registry
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          status=$(curl --silent --show-error --location \
+            --output "$RUNNER_TEMP/npm-version.json" --write-out '%{http_code}' \
+            "https://registry.npmjs.org/suxiaoqiang-cli/$VERSION")
+          case "$status" in
+            200) echo 'unpublished=false' >> "$GITHUB_OUTPUT" ;;
+            404) echo 'unpublished=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo "npm registry returned HTTP $status" >&2; exit 1 ;;
+          esac
+      - name: Build release package
+        if: steps.registry.outputs.unpublished == 'true'
+        run: |
+          npm ci
+          npm run build
+          npm pack --dry-run
+      - name: Create or verify GitHub release
+        if: steps.registry.outputs.unpublished == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            git fetch origin "refs/tags/$tag:refs/tags/$tag"
+            if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
+              echo "$tag points to a different commit. Fixes to package contents require a new version and release PR." >&2
+              exit 1
+            fi
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const request = JSON.parse(readFileSync('.github/release.json', 'utf8'));
+          writeFileSync(`${process.env.RUNNER_TEMP}/release-notes.md`, `${request.notes.trim()}\n`);
+          NODE
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          if [ "$(gh release view "$tag" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" != false ]; then
+            echo "$tag must be a published, stable GitHub release" >&2
+            exit 1
+          fi
+          git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
+            echo "$tag does not point to the release commit. Fixes to package contents require a new version and release PR." >&2
+            exit 1
+          fi
+      - name: Publish with npm trusted publisher
+        if: steps.registry.outputs.unpublished == 'true'
+        run: |
+          npm publish --access public
+          date +%s > "$RUNNER_TEMP/npm-published-at"
+      - name: Verify public npm installation
+        if: steps.registry.outputs.unpublished == 'true'
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          published_at=$(cat "$RUNNER_TEMP/npm-published-at")
+          for minute in 3 4 5 6 7 8 9 10; do
+            wait_seconds=$((published_at + minute * 60 - $(date +%s)))
+            if [ "$wait_seconds" -gt 0 ]; then
+              sleep "$wait_seconds"
+            fi
+            install_dir="$RUNNER_TEMP/npm-install-$minute"
+            mkdir -p "$install_dir"
+            if npm --registry=https://registry.npmjs.org/ \
+              --cache "$RUNNER_TEMP/npm-cache-$minute" --prefer-online \
+              --prefix "$install_dir" --no-audit --no-fund \
+              install "suxiaoqiang-cli@$VERSION"; then
+              if installed=$(node "$install_dir/node_modules/suxiaoqiang-cli/dist/index.js" --version) &&
+                [ "$installed" = "$VERSION" ]; then
+                exit 0
+              fi
+            fi
+          done
+          echo "Public npm installation of suxiaoqiang-cli@$VERSION failed through minute 10" >&2
+          exit 1
