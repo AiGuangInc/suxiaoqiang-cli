@@ -117,7 +117,7 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             git fetch origin "refs/tags/$tag:refs/tags/$tag"
             if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
-              echo "$tag points to a different commit. Retry the original workflow, or bump the version in a new release PR." >&2
+              echo "$tag points to a different commit. Fixes to package contents require a new version and release PR." >&2
               exit 1
             fi
           fi
@@ -136,26 +136,36 @@ jobs:
           fi
           git fetch origin "refs/tags/$tag:refs/tags/$tag"
           if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
-            echo "$tag does not point to the release commit. Retry the original workflow, or bump the version in a new release PR." >&2
+            echo "$tag does not point to the release commit. Fixes to package contents require a new version and release PR." >&2
             exit 1
           fi
       - name: Publish with npm trusted publisher
         if: steps.registry.outputs.unpublished == 'true'
-        run: npm publish --access public
-      - name: Verify npm version
+        run: |
+          npm publish --access public
+          date +%s > "$RUNNER_TEMP/npm-published-at"
+      - name: Verify public npm installation
         if: steps.registry.outputs.unpublished == 'true'
         env:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
-          for attempt in 1 2 3 4 5 6 7 8; do
-            published=$(npm --cache "$RUNNER_TEMP/npm-view-$attempt" --prefer-online \
-              view "suxiaoqiang-cli@$VERSION" version --json 2>/dev/null || true)
-            if [ "$published" = "\"$VERSION\"" ]; then
-              exit 0
+          published_at=$(cat "$RUNNER_TEMP/npm-published-at")
+          for minute in 3 4 5 6 7 8 9 10; do
+            wait_seconds=$((published_at + minute * 60 - $(date +%s)))
+            if [ "$wait_seconds" -gt 0 ]; then
+              sleep "$wait_seconds"
             fi
-            if [ "$attempt" -lt 8 ]; then
-              sleep 45
+            install_dir="$RUNNER_TEMP/npm-install-$minute"
+            mkdir -p "$install_dir"
+            if npm --registry=https://registry.npmjs.org/ \
+              --cache "$RUNNER_TEMP/npm-cache-$minute" --prefer-online \
+              --prefix "$install_dir" --no-audit --no-fund \
+              install "suxiaoqiang-cli@$VERSION"; then
+              if installed=$(node "$install_dir/node_modules/suxiaoqiang-cli/dist/index.js" --version) &&
+                [ "$installed" = "$VERSION" ]; then
+                exit 0
+              fi
             fi
           done
-          echo "npm did not report suxiaoqiang-cli@$VERSION" >&2
+          echo "Public npm installation of suxiaoqiang-cli@$VERSION failed through minute 10" >&2
           exit 1
