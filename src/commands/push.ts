@@ -8,7 +8,6 @@ import { batchManualModifyForSync, querySessionAttachmentsForSync } from '../lib
 import {
   buildAttachmentTree,
   flattenTree,
-  hashContent,
   loadManifest,
   saveManifest,
 } from '../lib/manifest.js';
@@ -18,13 +17,12 @@ import { debug, isDebug } from '../lib/debug.js';
 import { loadSyncIgnore, type SyncIgnore } from '../lib/ignore.js';
 import { t } from '../lib/i18n.js';
 import { confirm } from '../lib/prompt.js';
+import { FileScanCache, MAX_SYNC_FILE_SIZE } from '../lib/file-cache.js';
 import type {
   AttachmentMeta,
   ManualModifyFile,
   SyncConflict,
 } from '../types/index.js';
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 /** 服务端托管或本地工具专用的受保护目录。 */
 export const PROTECTED_DIRS = [
@@ -132,6 +130,7 @@ async function collectLocalFiles(
   const files: string[] = [];
   for (const entry of entries) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (isProtectedPath(path)) continue;
     if (entry.isDirectory()) {
       if (ig.ignoresDir(path) && !trackedDirectories.has(path)) continue;
       files.push(...(await collectLocalFiles(
@@ -176,10 +175,12 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
 
   try {
     // 1. 先把工作树合并到当前远端 HEAD；冲突状态由下面的 commit 规划显式处理。
+    const pullStarted = performance.now();
     const pullResult = await runPull(sessionId, spinner, {
       gitCommand: 'push',
       gitForce: options.force ?? false,
     });
+    debug('Push pre-pull', { ms: Math.round(performance.now() - pullStarted) });
 
     spinner.start(t('push.scanning'));
     const manifest = await loadManifest();
@@ -213,6 +214,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
     }
 
     const ig = await loadSyncIgnore();
+    const scanStarted = performance.now();
     const localPaths = await collectLocalFiles(
       process.cwd(),
       ig,
@@ -225,24 +227,26 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
     const destructiveConflicts: DestructiveConflict[] = [];
     const skippedBinary: string[] = [];
     const skippedLarge: string[] = [];
+    const fileCache = await FileScanCache.load(sessionId);
 
     for (const path of localPaths) {
       if (isProtectedPath(path)) continue;
-      const buf = await readFile(join(process.cwd(), path));
       const conflict = conflicts.get(path);
-      if (buf.length > MAX_FILE_SIZE) {
+      const meta = baseline.get(path);
+      const scanned = await fileCache.scan(path, meta?.hash, Boolean(conflict));
+      if (scanned.kind === 'unchanged') continue;
+      if (scanned.kind === 'large') {
         skippedLarge.push(path);
         if (conflict) unresolved.push(path);
         continue;
       }
-      if (buf.includes(0)) {
+      if (scanned.kind === 'binary') {
         skippedBinary.push(path);
         if (conflict) unresolved.push(path);
         continue;
       }
 
-      const content = buf.toString('utf-8');
-      const meta = baseline.get(path);
+      const { content, hash } = scanned;
       if (conflict && hasConflictMarker(content)) {
         unresolved.push(path);
         continue;
@@ -252,7 +256,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
         destructiveConflicts.push({ path, conflict, action: 'restore-remote' });
         remainingConflicts.delete(path);
       } else if (conflict?.type === 'local-delete-remote-modify') {
-        if (meta?.hash && meta.hash === hashContent(content)) {
+        if (meta?.hash && meta.hash === hash) {
           remainingConflicts.delete(path); // 接受远端新版本，无需提交。
           continue;
         }
@@ -263,9 +267,17 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
         remainingConflicts.delete(path);
       }
 
-      if (meta?.hash && meta.hash === hashContent(content)) continue;
+      if (meta?.hash && meta.hash === hash) continue;
       toPush.push({ filename: path, content });
     }
+    await fileCache.save();
+    debug('Push file scan', {
+      ms: Math.round(performance.now() - scanStarted),
+      files: localPaths.length,
+      skippedLarge: skippedLarge.length,
+      skippedBinary: skippedBinary.length,
+      ...fileCache.stats,
+    });
 
     // 基线中已 materialize、当前不存在的路径是本地删除。
     const deletedLocally = [...baseline.entries()]
@@ -374,6 +386,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       }
     }
 
+    const validationStarted = performance.now();
     await validateLocalPlan(
       localPaths,
       toPush,
@@ -381,9 +394,11 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       trackedPaths,
       trackedDirectories
     );
+    debug('Push plan validation', { ms: Math.round(performance.now() - validationStarted) });
 
     // 2. commit + CAS push：preSnapshotId 永远存在，空仓库使用服务端的 "0" 根快照。
     spinner.start(t('push.pushing', { count: toPush.length }));
+    const saveStarted = performance.now();
     const modifyResult = await batchManualModifyForSync({
       sessionId,
       withSnapshot: true,
@@ -391,10 +406,12 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       summary: options.message || t('push.defaultSummary', { count: toPush.length }),
       files: toPush,
     });
+    debug('Push remote save', { ms: Math.round(performance.now() - saveStarted), files: toPush.length });
     if (!modifyResult.snapshotId) throw new Error(t('push.snapshotMissing'));
 
     // 3. 只读取本次 commit 的不可变 tree，绝不读取“当前最新”再配本次 snapshotId。
     spinner.text = t('push.updatingManifest');
+    const refreshStarted = performance.now();
     const refreshResult = await querySessionAttachmentsForSync({
       sessionId,
       snapshotId: modifyResult.snapshotId,
@@ -425,6 +442,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
         a.path.localeCompare(b.path)
       ),
     });
+    debug('Push manifest refresh', { ms: Math.round(performance.now() - refreshStarted) });
 
     spinner.succeed(t('push.success', { count: toPush.length }));
     for (const file of toPush) {
@@ -436,7 +454,7 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
       for (const name of skippedBinary) logger.dim(`  ${name}`);
     }
     if (skippedLarge.length > 0) {
-      logger.warn(t('push.skippedLargeHeader', { size: MAX_FILE_SIZE / 1024 / 1024 }));
+      logger.warn(t('push.skippedLargeHeader', { size: MAX_SYNC_FILE_SIZE / 1024 / 1024 }));
       for (const name of skippedLarge) logger.dim(`  ${name}`);
     }
   } catch (error) {

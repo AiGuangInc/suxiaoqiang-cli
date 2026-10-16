@@ -71,6 +71,15 @@ sxq deploy                  # 在浏览器中打开项目发布确认页
 | `sxq config set\|get\|unset\|list` | 管理配置。支持项：`host`、`lang`（`zh` / `en`）、项目级 `push-branch`（默认 `main`）。 |
 | `sxq upgrade` | 从 npm 升级 CLI 到最新版本。 |
 
+## 大项目同步
+
+增量 pull 不读取远端未变化文件的本地正文，远端变更正文最多并发下载 4 个。push 使用
+可丢弃的 `.sxq/file-cache.json` 缓存：文件元信息未变且已验证的哈希仍与远端基线一致时，
+跳过正文读取；冲突文件或时间戳不确定时仍重新读取。删除缓存只会让下次扫描重新读盘。
+受保护目录在遍历前跳过，超过 5 MB 的文件在读取前跳过。使用 `sxq pull --debug` 或
+`sxq push --debug` 查看分阶段耗时、正文读取数量和 push 缓存命中数。扫描仍会枚举项目路径，
+以识别新增和删除。
+
 ## 强制升级策略
 
 CLI 每天第一次执行命令时刷新 npm dist-tags，当天后续命令只读取本地缓存。`latest`
