@@ -112,6 +112,40 @@ async function fetchAttachmentContent(
   return content;
 }
 
+/** 下载只访问不可变 rowKey；全部完成后，调用方才规划并修改工作树。 */
+async function prefetchAttachmentContents(
+  sessionId: string,
+  attachments: SessionAttachment[],
+  spinner: Ora
+): Promise<void> {
+  const concurrency = Math.min(4, attachments.length);
+  const started = performance.now();
+  let next = 0;
+  let completed = 0;
+  let failed = false;
+  const workers = await Promise.allSettled(Array.from({ length: concurrency }, async () => {
+    while (!failed && next < attachments.length) {
+      const attachment = attachments[next++];
+      spinner.text = t('pull.processing', {
+        current: completed + 1, total: attachments.length, name: attachment.name,
+      });
+      try {
+        await fetchAttachmentContent(sessionId, attachment);
+        completed++;
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
+    }
+  }));
+  debug('Pull content download', {
+    ms: Math.round(performance.now() - started), files: attachments.length,
+    completed, concurrency,
+  });
+  const failure = workers.find((worker) => worker.status === 'rejected');
+  if (failure?.status === 'rejected') throw failure.reason;
+}
+
 /**
  * 单分支 Git-like pull：以 manifest tree 为 Base、本地目录为 Local、远端 HEAD 为 Remote，
  * 先完整规划再落盘。manifest 最终总是精确对应 Remote，未解决意图单独保存在 conflicts。
@@ -124,6 +158,7 @@ async function syncPull(
 ): Promise<PullResult> {
   const isInitial = !manifestForSession || manifestForSession.sessionId !== sessionId;
   const manifest = isInitial ? null : manifestForSession;
+  const listingStarted = performance.now();
   const result = await querySessionAttachmentsForSync({
     sessionId,
     withContent: isInitial,
@@ -131,6 +166,10 @@ async function syncPull(
   if (result.snapshotId === null || result.snapshotId === undefined) {
     throw new Error(t('pull.snapshotMissing'));
   }
+  debug('Pull remote listing', {
+    ms: Math.round(performance.now() - listingStarted),
+    files: result.attachments?.length ?? 0, initial: isInitial,
+  });
 
   const remoteFiles = (result.attachments ?? []).flatMap((file) =>
     file.name ? [file.name] : []
@@ -164,13 +203,28 @@ async function syncPull(
     ...conflicts.keys(),
   ]);
 
+  const pendingContents = remoteAttachments.filter((remote) => {
+    const base = baseline.get(remote.name);
+    const shouldMaterialize = Boolean(base?.hash) || !ig.ignores(remote.name);
+    const needsContent = !base || base.rowKey !== remote.rowKey || !base.hash;
+    return shouldMaterialize && needsContent && remote.content == null;
+  });
+  await prefetchAttachmentContents(sessionId, pendingContents, spinner);
+  const planningStarted = performance.now();
+  let localReads = 0;
+  const readForMerge = async (path: string): Promise<string | null> => {
+    const content = await readLocal(path);
+    if (content !== null) localReads++;
+    return content;
+  };
+
   for (const path of [...paths].sort()) {
     const baseMeta = baseline.get(path);
     const remote = remoteByPath.get(path);
     const previousConflict = conflicts.get(path);
-    const localContent = await readLocal(path);
 
     if (!remote) {
+      const localContent = await readForMerge(path);
       // 已经记录过的远程删除冲突：用户删除本地副本即表示接受远程删除。
       if (!baseMeta && previousConflict?.type === 'remote-delete-local-modify') {
         if (localContent === null) conflicts.delete(path);
@@ -222,6 +276,8 @@ async function syncPull(
       continue;
     }
 
+    // 只有需要合并或首次落盘时才读取本地正文；未变化文件保留工作区状态。
+    const localContent = await readForMerge(path);
     spinner.text = t('pull.processing', {
       current: updated.length + deleted.length + 1,
       total: paths.size,
@@ -313,8 +369,13 @@ async function syncPull(
       conflicts.delete(path);
     }
   }
+  debug('Pull merge planning', {
+    ms: Math.round(performance.now() - planningStarted), paths: paths.size,
+    localReads, operations: operations.length, conflicts: conflicts.size,
+  });
 
   // 所有远端读取和合并均完成后才触碰工作树，降低中途失败造成的半拉取状态。
+  const writeStarted = performance.now();
   for (const operation of operations) {
     if (operation.type === 'delete') {
       await deleteLocal(operation.path);
@@ -331,6 +392,7 @@ async function syncPull(
     tree: buildAttachmentTree(remoteAttachments, baseline),
     conflicts: [...conflicts.values()].sort((a, b) => a.path.localeCompare(b.path)),
   });
+  debug('Pull worktree and manifest write', { ms: Math.round(performance.now() - writeStarted) });
   debug('Manifest saved', getManifestPath());
 
   const conflicted = [...conflicts.keys()].sort();

@@ -71,6 +71,16 @@ sxq deploy                  # opens the project release confirmation page in you
 | `sxq config set\|get\|unset\|list` | Manage config. Keys: `host`, `lang` (`zh` / `en`), and project-level `push-branch` (default `main`). |
 | `sxq upgrade` | Upgrade the CLI to the latest version from npm. |
 
+## Large-project synchronization
+
+Incremental pulls skip unchanged local file contents and download changed remote contents with at
+most four concurrent requests. Push scans use a disposable `.sxq/file-cache.json` to reuse verified
+hashes when file metadata still matches the remote baseline; conflicts and uncertain timestamps
+always trigger a content read. Deleting this cache only makes the next scan read files again.
+Protected directories are skipped before traversal, and files over 5 MB are skipped before reading.
+Use `sxq pull --debug` or `sxq push --debug` to inspect stage timings, content-read counts, and push
+cache hits. The scan still enumerates project paths to detect additions and deletions.
+
 ## Mandatory upgrade policy
 
 The CLI refreshes npm dist-tags on the first command each day; later commands that day only read the
