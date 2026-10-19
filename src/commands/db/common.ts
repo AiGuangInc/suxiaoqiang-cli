@@ -1,5 +1,5 @@
 import ora from 'ora';
-import { queryIsolatedDebugStatus } from '../../lib/api.js';
+import { queryIsolatedDebugStatus, queryProjectPluginStatus } from '../../lib/api.js';
 import {
   requireEnabledPluginAndUpgradeSkills,
   SUPERUN_CLOUD_PLUGIN_ID,
@@ -39,9 +39,34 @@ export async function resolveDatabaseEnvironment(
   sessionId: string,
   prod: boolean
 ): Promise<{ env: 'debug' | 'prod'; isolated: boolean }> {
-  const status = await queryIsolatedDebugStatus(sessionId);
+  let status = await queryIsolatedDebugStatus(sessionId);
   const isolated = status.enabled === true;
   if (prod && !isolated) throw new Error(t('db.prodRequiresIsolation'));
+  if (!prod && isolated && status.status !== 'READY') {
+    const spinner = ora(t('db.waitingForCloud', { state: status.status ?? 'UNKNOWN' })).start();
+    const deadline = Date.now() + 25 * 60 * 1000;
+    try {
+      while (true) {
+        if (status.enabled !== true || status.status === 'FAILED') {
+          throw new Error(t('db.cloudRestoreFailed', { state: status.status ?? 'UNKNOWN' }));
+        }
+        if (status.status === 'READY') break;
+        if (Date.now() >= deadline) {
+          throw new Error(t('db.cloudWaitTimeout', { state: status.status ?? 'UNKNOWN' }));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        // 复用 CLI 插件入口触发按需恢复；通用 Debug 状态查询保持只读。
+        const cloud = await queryProjectPluginStatus(sessionId, SUPERUN_CLOUD_PLUGIN_ID);
+        if (cloud.state !== 'ENABLED') {
+          throw new Error(t('db.cloudRestoreFailed', { state: cloud.state }));
+        }
+        status = await queryIsolatedDebugStatus(sessionId);
+        spinner.text = t('db.waitingForCloud', { state: status.status ?? 'UNKNOWN' });
+      }
+    } finally {
+      spinner.stop();
+    }
+  }
   return { env: prod ? 'prod' : 'debug', isolated };
 }
 

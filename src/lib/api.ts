@@ -44,7 +44,12 @@ async function parseJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
 }
 
 /** 通用请求方法 */
-async function request<T>(path: string, body: Record<string, unknown>, credential?: string): Promise<ApiResponse<T>> {
+async function request<T>(
+  path: string,
+  body: Record<string, unknown>,
+  credential?: string,
+  timeoutMs?: number
+): Promise<ApiResponse<T>> {
   const token = credential ?? await getToken();
   if (!token) {
     logger.error(t('api.notLoggedIn'));
@@ -92,7 +97,7 @@ async function request<T>(path: string, body: Record<string, unknown>, credentia
     headers,
     body: JSON.stringify(body),
     redirect: 'manual',
-    ...(credential ? { signal: AbortSignal.timeout(60000) } : {}),
+    ...((credential || timeoutMs) ? { signal: AbortSignal.timeout(timeoutMs ?? 60000) } : {}),
   });
 
   debug('Response Status', `${res.status} ${res.statusText}`);
@@ -350,7 +355,7 @@ export async function queryProjectPluginStatus(
   const response = await request<ProjectPluginStatusResult>(`${PROJECT_PLUGIN_PATH}/status`, {
     sessionId,
     pluginId,
-  });
+  }, undefined, 30000);
   return response.data;
 }
 
@@ -399,7 +404,9 @@ export async function supabaseRunQuery(params: SupabaseRunQueryParams): Promise<
 export async function queryIsolatedDebugStatus(sessionId: string): Promise<IsolatedDebugStatusResult> {
   const response = await request<IsolatedDebugStatusResult>(
     '/api/uxa-center/agent/SessionIntegration/queryIsolatedDebugStatus',
-    { sessionId }
+    { sessionId },
+    undefined,
+    30000
   );
   return response.data;
 }

@@ -182,6 +182,11 @@ with `--prod`. `--prod` fails explicitly when isolated deployment is not enabled
 write for development workflows; `--prod` is enforced read-only by both the CLI and backend. Use
 migration files and `sxq db push` for durable, replayable schema changes.
 
+With a backend that supports automatic recovery, CLI project activity refreshes the idle deadline and
+wakes paused cloud services. Database commands wait for recovery before submitting requests, up to
+25 minutes per recovery phase; SQL and migrations are never retried automatically. Disabled and
+archived projects are not automatically enabled. `--prod` does not wait for independent Debug recovery.
+
 ## Notes
 
 - **`.gitignore` support**: `pull` / `push` respect your project's `.gitignore` (plus built-in ignores like `node_modules`, `dist`, `.git`). Ignored files are never synced.

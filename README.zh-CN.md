@@ -168,6 +168,10 @@ sxq db push -m "新增用户资料表"
 
 SQL 和日志查询：
 
+支持自动恢复的后端会根据 CLI 项目访问刷新闲置期限，并唤醒暂停的云服务。数据库命令先等待恢复，
+再提交查询、迁移或日志请求；每个恢复阶段最多等待 25 分钟，不自动重试 SQL 或迁移。主动禁用或
+归档的项目不会自动启用；`--prod` 不等待独立 Debug 恢复。
+
 ```bash
 sxq db query "select * from users limit 20"
 sxq db query --file query.sql --json
