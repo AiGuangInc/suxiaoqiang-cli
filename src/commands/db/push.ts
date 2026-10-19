@@ -9,7 +9,7 @@ import { loadManifest, flattenTree } from '../../lib/manifest.js';
 import { runPull } from '../pull.js';
 import { debug, isDebug } from '../../lib/debug.js';
 import { t } from '../../lib/i18n.js';
-import { prepareDatabasePlugin } from './common.js';
+import { prepareDatabasePlugin, resolveDatabaseEnvironment } from './common.js';
 
 export const MIGRATIONS_DIR = 'supabase/migrations';
 /** 强制：<14 位 yyyyMMddHHmmss>_<标识>.sql；时间戳是迁移回放排序键 */
@@ -141,6 +141,10 @@ export async function dbPushCommand(options: DbPushOptions = {}): Promise<void> 
       process.exit(1);
     }
 
+    // 恢复只轮询状态，任何迁移提交都不自动重试。
+    spinner.stop();
+    await resolveDatabaseEnvironment(sessionId, false);
+    spinner.start();
     // ── 4. 按时间戳顺序逐个执行，失败即停 ──────────────────
     newMigrations.sort();
     let executed = 0;

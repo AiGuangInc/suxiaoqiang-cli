@@ -180,7 +180,11 @@ Full flow:
 ## Database queries and logs
 
 Every `sxq db` command requires `SUPERUN_CLOUD=ENABLED` and first force-upgrades that plugin's private
-skills.
+skills. On backends that support automatic recovery, project sync and plugin/database access refresh
+project activity and wake idle cloud services. Database commands poll recovery state before submitting
+SQL, migrations, or log requests (up to 25 minutes per recovery phase). They never retry SQL or DDL
+automatically. Disabled or archived projects are not automatically enabled. `--prod` does not wait for
+the independent Debug environment to recover. Independent Debug still follows its daily idle cleanup.
 
 - `sxq db query [sql] [--file <path>] [--limit <n>] [--json]` runs SQL against Debug by default and
   accepts exactly one SQL argument, file, or stdin stream. Debug permits writes for development;

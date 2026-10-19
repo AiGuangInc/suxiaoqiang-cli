@@ -12,12 +12,23 @@ export async function fetchAndInstallProjectPluginSkills(
   return installProjectPluginSkills(result);
 }
 
-/** 插件能力命令的统一前置：必须已启用，并强制安装服务端最新私有 skill。 */
+/** 插件能力命令的统一前置：等待 Cloud 自动恢复，检查启用状态并升级私有 skill。 */
 export async function requireEnabledPluginAndUpgradeSkills(
   sessionId: string,
   pluginId: string
 ): Promise<PluginSkillInstallResult> {
-  const status = await queryProjectPluginStatus(sessionId, pluginId);
+  let status = await queryProjectPluginStatus(sessionId, pluginId);
+  // Cloud 的暂停是闲置回收；服务端收到真实访问后会启动恢复，等待状态机完成。
+  const deadline = Date.now() + 25 * 60 * 1000;
+  while (pluginId === SUPERUN_CLOUD_PLUGIN_ID
+    && ['ENABLING', 'RESTORING', 'PAUSING'].includes(status.state)) {
+    if (Date.now() >= deadline) throw new Error(t('db.cloudWaitTimeout', { state: status.state }));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    status = await queryProjectPluginStatus(sessionId, pluginId);
+  }
+  if (pluginId === SUPERUN_CLOUD_PLUGIN_ID && status.state === 'PAUSED') {
+    throw new Error(t('db.cloudRestoreRejected'));
+  }
   if (status.state !== 'ENABLED') {
     throw new Error(t('plugin.requiredNotEnabled', { pluginId, state: status.state }));
   }
