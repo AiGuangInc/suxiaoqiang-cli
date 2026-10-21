@@ -12,6 +12,7 @@ import {
   saveManifest,
 } from '../lib/manifest.js';
 import { runPull } from './pull.js';
+import { preparePushPayload } from '../lib/push-payload.js';
 import { MIGRATIONS_DIR } from './db/push.js';
 import { debug, isDebug } from '../lib/debug.js';
 import { loadSyncIgnore, type SyncIgnore } from '../lib/ignore.js';
@@ -399,13 +400,17 @@ export async function pushCommand(options: PushOptions = {}): Promise<void> {
     // 2. commit + CAS push：preSnapshotId 永远存在，空仓库使用服务端的 "0" 根快照。
     spinner.start(t('push.pushing', { count: toPush.length }));
     const saveStarted = performance.now();
-    const modifyResult = await batchManualModifyForSync({
+    const params = await preparePushPayload({
       sessionId,
       withSnapshot: true,
       preSnapshotId: pullResult.snapshotId,
       summary: options.message || t('push.defaultSummary', { count: toPush.length }),
       files: toPush,
+    }, (batch, total) => {
+      spinner.text = t('push.uploadBatch', { batch, total });
     });
+    spinner.text = t('push.pushing', { count: toPush.length });
+    const modifyResult = await batchManualModifyForSync(params);
     debug('Push remote save', { ms: Math.round(performance.now() - saveStarted), files: toPush.length });
     if (!modifyResult.snapshotId) throw new Error(t('push.snapshotMissing'));
 

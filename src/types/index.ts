@@ -72,6 +72,8 @@ export interface ManualModifyFile {
   filename: string;
   /** 新增/修改时传文本内容；删除时可省略 */
   content?: string;
+  /** 大包推送时引用已暂存的正文，与 content 二选一 */
+  rowKey?: string;
   /** 为 true 时删除远端附件 */
   deleted?: boolean;
 }
