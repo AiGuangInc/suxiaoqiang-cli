@@ -1,6 +1,13 @@
 name: Build and publish npm
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing stable release tag to publish without changing its package contents
+        required: true
+        type: string
+        default: v1.1.5
   pull_request:
   push:
     branches: [main]
@@ -25,6 +32,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.release_tag || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -33,6 +41,7 @@ jobs:
         id: release
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
         run: |
           node --input-type=module <<'NODE'
           import { execFileSync } from 'node:child_process';
@@ -47,6 +56,11 @@ jobs:
           }
           if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pkg.version)) {
             throw new Error('Package version must be a valid release version');
+          }
+          if (process.env.RELEASE_TAG &&
+              (!/^v\d+\.\d+\.\d+$/.test(process.env.RELEASE_TAG) ||
+               process.env.RELEASE_TAG !== `v${pkg.version}`)) {
+            throw new Error('Manual recovery requires the exact stable package version tag');
           }
 
           const releasePath = '.github/release.json';
@@ -65,13 +79,13 @@ jobs:
           }
           appendFileSync(process.env.GITHUB_OUTPUT, `requested=${hasRequest}\nversion=${pkg.version}\n`);
           NODE
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npm pack --dry-run
 
   publish:
     name: Publish npm
-    if: github.event_name == 'push' && needs.build.outputs.release_requested == 'true'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.build.outputs.release_requested == 'true'
     needs: build
     runs-on: ubuntu-latest
     environment: npm-publish
@@ -82,6 +96,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.release_tag || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -111,7 +126,7 @@ jobs:
       - name: Build release package
         if: steps.registry.outputs.unpublished == 'true'
         run: |
-          npm ci
+          npm ci --no-audit --no-fund
           npm run build
           npm pack --dry-run
       - name: Create or verify GitHub release
@@ -121,9 +136,10 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           tag="v$VERSION"
+          release_sha=$(git rev-parse HEAD)
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             git fetch origin "refs/tags/$tag:refs/tags/$tag"
-            if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
+            if [ "$(git rev-parse "$tag^{commit}")" != "$release_sha" ]; then
               echo "$tag points to a different commit. Fixes to package contents require a new version and release PR." >&2
               exit 1
             fi
@@ -134,7 +150,7 @@ jobs:
           writeFileSync(`${process.env.RUNNER_TEMP}/release-notes.md`, `${request.notes.trim()}\n`);
           NODE
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" \
+            gh release create "$tag" --target "$release_sha" --title "$tag" \
               --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           if [ "$(gh release view "$tag" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" != false ]; then
@@ -142,12 +158,14 @@ jobs:
             exit 1
           fi
           git fetch origin "refs/tags/$tag:refs/tags/$tag"
-          if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
+          if [ "$(git rev-parse "$tag^{commit}")" != "$release_sha" ]; then
             echo "$tag does not point to the release commit. Fixes to package contents require a new version and release PR." >&2
             exit 1
           fi
       - name: Publish with npm trusted publisher
         if: steps.registry.outputs.unpublished == 'true'
+        env:
+          NPM_CONFIG_LOGLEVEL: verbose
         run: |
           npm publish --access public
           date +%s > "$RUNNER_TEMP/npm-published-at"
