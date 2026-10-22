@@ -288,6 +288,18 @@ export async function glowConsultChat(params: GlowConsultChatParams): Promise<Gl
   return response.data;
 }
 
+/** 暂存正文，不修改项目文件或快照。 */
+export async function batchSaveContentAndGetRowKeys(
+  sessionId: string,
+  files: Record<string, string>
+): Promise<Record<string, string>> {
+  const response = await request<Record<string, string>>(
+    '/api/uxa-center/agent/AgentCommand/batchSaveContentAndGetRowKeys',
+    { sessionId, files }
+  );
+  return response.data;
+}
+
 /** 批量保存/删除附件（push），并返回本次提交生成的快照 ID */
 export async function batchManualModifyForSync(
   params: BatchManualModifyParams

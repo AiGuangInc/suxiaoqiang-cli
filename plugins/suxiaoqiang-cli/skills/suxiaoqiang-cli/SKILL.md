@@ -66,6 +66,9 @@ sxq deploy --status         # read-only: pending/published versions + live URL
   prompt. Only use `-y` after the user has authorized the exact push. Respects `.gitignore` plus
   built-in ignores (`node_modules`, `dist`, `.git`; binaries and files over 5MB are skipped). If it
   aborts with conflict markers (`<<<<<<< local`), resolve the listed files, then push again.
+  Large aggregate requests automatically upload text in batches, then commit rowKey references with
+  the original snapshot guard. Small pushes retain direct submission. Failed uploads do not commit
+  project files; a single file whose JSON encoding exceeds the upload limit is rejected before upload.
 - `sxq preview [front|ef] [--message-id <id>]` — updates the preview environment. `front` is
   the default and polls the preview build for up to 10 min; `ef` deploys all Edge Functions
   from the linked project's latest completed mainline version. `--message-id` only applies to
