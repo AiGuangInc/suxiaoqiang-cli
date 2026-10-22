@@ -81,6 +81,10 @@ Protected directories are skipped before traversal, and files over 5 MB are skip
 Use `sxq pull --debug` or `sxq push --debug` to inspect stage timings, content-read counts, and push
 cache hits. The scan still enumerates project paths to detect additions and deletions.
 
+Large pushes automatically upload text in batches and commit content references in one snapshot-guarded
+submission. Small pushes keep direct submission. Upload failures stop the commit; files whose JSON
+encoding exceeds a single upload limit are rejected before uploading.
+
 ## Mandatory upgrade policy
 
 The CLI refreshes npm dist-tags on the first command each day; later commands that day only read the
