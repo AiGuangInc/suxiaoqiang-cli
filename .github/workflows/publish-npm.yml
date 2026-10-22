@@ -93,14 +93,21 @@ jobs:
         env:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
-          status=$(curl --silent --show-error --location \
-            --output "$RUNNER_TEMP/npm-version.json" --write-out '%{http_code}' \
-            "https://registry.npmjs.org/suxiaoqiang-cli/$VERSION")
-          case "$status" in
-            200) echo 'unpublished=false' >> "$GITHUB_OUTPUT" ;;
-            404) echo 'unpublished=true' >> "$GITHUB_OUTPUT" ;;
-            *) echo "npm registry returned HTTP $status" >&2; exit 1 ;;
-          esac
+          curl --fail --silent --show-error --location \
+            --connect-timeout 10 --max-time 60 --retry 2 --retry-max-time 120 \
+            --header 'Accept: application/vnd.npm.install-v1+json' \
+            --output "$RUNNER_TEMP/npm-metadata.json" \
+            'https://registry.npmjs.org/suxiaoqiang-cli'
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const metadata = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/npm-metadata.json`, 'utf8'));
+          if (metadata.name !== 'suxiaoqiang-cli' || !metadata.versions ||
+              typeof metadata.versions !== 'object' || Array.isArray(metadata.versions)) {
+            throw new Error('Invalid npm package metadata');
+          }
+          const exists = Object.hasOwn(metadata.versions, process.env.VERSION);
+          appendFileSync(process.env.GITHUB_OUTPUT, `unpublished=${!exists}\n`);
+          NODE
       - name: Build release package
         if: steps.registry.outputs.unpublished == 'true'
         run: |
