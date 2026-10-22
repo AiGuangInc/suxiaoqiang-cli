@@ -167,8 +167,26 @@ jobs:
         env:
           NPM_CONFIG_LOGLEVEL: verbose
         run: |
-          npm publish --access public
-          date +%s > "$RUNNER_TEMP/npm-published-at"
+          for attempt in $(seq 1 10); do
+            log_file="$RUNNER_TEMP/npm-publish-$attempt.log"
+            if npm publish --access public > "$log_file" 2>&1; then
+              cat "$log_file"
+              date +%s > "$RUNNER_TEMP/npm-published-at"
+              exit 0
+            else
+              result=$?
+            fi
+            cat "$log_file"
+            # OIDC 503 falls back to ENEEDAUTH before npm can submit a package.
+            # Never retry a publish failure whose submission outcome is uncertain.
+            if [ "$attempt" -eq 10 ] ||
+               ! grep -Eq 'npm http fetch POST 503 https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/' "$log_file" ||
+               ! grep -q 'npm error code ENEEDAUTH' "$log_file"; then
+              exit "$result"
+            fi
+            echo "::warning::npm OIDC exchange returned 503; retrying authentication in 60 seconds (attempt $attempt/10)"
+            sleep 60
+          done
       - name: Verify public npm installation
         if: steps.registry.outputs.unpublished == 'true'
         env:
