@@ -161,7 +161,8 @@ async function syncPull(
   const listingStarted = performance.now();
   const result = await querySessionAttachmentsForSync({
     sessionId,
-    withContent: isInitial,
+    // 首次也只取清单，正文经本地过滤后按不可变 rowKey 并发下载，避免单次大响应超时。
+    withContent: false,
   });
   if (result.snapshotId === null || result.snapshotId === undefined) {
     throw new Error(t('pull.snapshotMissing'));
