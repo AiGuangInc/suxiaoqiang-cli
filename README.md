@@ -73,8 +73,10 @@ sxq deploy                  # opens the project release confirmation page in you
 
 ## Large-project synchronization
 
-Incremental pulls skip unchanged local file contents and download changed remote contents with at
-most four concurrent requests. Push scans use a disposable `.sxq/file-cache.json` to reuse verified
+All pulls, including the first pull, fetch the remote file list without contents. After local ignore
+rules are applied, required contents are downloaded by immutable rowKey with at most four concurrent
+requests, avoiding a single large full-content response. Incremental pulls also skip unchanged local
+file contents. Push scans use a disposable `.sxq/file-cache.json` to reuse verified
 hashes when file metadata still matches the remote baseline; conflicts and uncertain timestamps
 always trigger a content read. Deleting this cache only makes the next scan read files again.
 Protected directories are skipped before traversal, and files over 5 MB are skipped before reading.
