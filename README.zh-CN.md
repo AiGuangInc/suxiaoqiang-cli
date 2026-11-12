@@ -203,7 +203,7 @@ sxq db logs --type function --since 15m
 
 ### PAT 登录
 
-运行 `sxq login`，在浏览器授权后，CLI 使用临时 token 调用 `PersonalAccessToken/create` 签发 `sup_pat_` PAT，并保存到系统凭证库：macOS Keychain、Windows 凭证管理器或 Linux Secret Service。登录凭证按 API 基础 URL 隔离，切换 `host` 不会沿用其他环境的凭证。
+运行 `sxq login`，在浏览器授权后，CLI 使用临时 token 调用 `PersonalAccessToken/create` 签发 `sup_pat_` PAT，并保存到系统凭证库：macOS Keychain、Windows 凭证管理器或 Linux Secret Service。沙箱可运行 `sxq login --no-browser`，由宿主展示 CLI 输出的授权链接，原进程继续等待同一次回调。登录凭证按 API 基础 URL 隔离，切换 `host` 不会沿用其他环境的凭证。
 
 CLI 默认使用系统凭证库。无桌面 Linux 且没有会话 D-Bus 时，才退回本地明文文件并提示（Unix 权限 `0600`）；凭证库锁定、拒绝访问或出错时会停止命令，不会悄悄写入明文。读、写、删除都只操作选中的存储。系统凭证库可用但没有凭证时，不读取本地文件；没有凭证就重新登录。系统凭证库可用时，即使其中没有凭证，也会删除当前环境的本地明文 token 和旧版本登录 token 字段；两种存储之间不迁移凭证。切换 API host 不搬运凭证。
 

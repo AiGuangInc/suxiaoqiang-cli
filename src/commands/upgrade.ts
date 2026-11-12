@@ -8,6 +8,7 @@ import { compareSemver } from '../lib/semver.js';
 import { debug, isDebug } from '../lib/debug.js';
 import { t } from '../lib/i18n.js';
 import { getApiBase } from '../lib/config.js';
+import { childEnvWithoutCredentials } from '../lib/child-env.js';
 import { name as PKG_NAME, version as CURRENT } from '../../package.json';
 
 const execFileAsync = promisify(execFile);
@@ -41,7 +42,9 @@ export interface UpgradeResult {
 
 async function resolveGlobalCliEntry(): Promise<string> {
   try {
-    const { stdout } = await execFileAsync('npm', ['root', '-g'], { shell: USE_SHELL });
+    const { stdout } = await execFileAsync('npm', ['root', '-g'], {
+      shell: USE_SHELL, env: childEnvWithoutCredentials(),
+    });
     const entry = join(stdout.trim(), PKG_NAME, 'dist', 'index.js');
     if (existsSync(entry)) return entry;
     debug('global CLI entry missing after upgrade', entry);
@@ -58,6 +61,7 @@ export async function upgradeCommand(options: UpgradeOptions = {}): Promise<Upgr
   try {
     const { stdout } = await execFileAsync('npm', ['view', PKG_NAME, 'version'], {
       shell: USE_SHELL,
+      env: childEnvWithoutCredentials(),
     });
     latest = stdout.trim();
     debug('npm view version', { current: CURRENT, latest, minimum: options.minimumVersion });
@@ -84,6 +88,7 @@ export async function upgradeCommand(options: UpgradeOptions = {}): Promise<Upgr
     const child = spawn('npm', ['install', '-g', `${PKG_NAME}@${target}`], {
       stdio: 'inherit',
       shell: USE_SHELL,
+      env: childEnvWithoutCredentials(),
     });
     child.on('close', (exitCode) => resolve(exitCode ?? 1));
     child.on('error', () => resolve(1));

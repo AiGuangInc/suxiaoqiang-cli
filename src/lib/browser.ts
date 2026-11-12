@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { childEnvWithoutCredentials } from './child-env.js';
 
 /** 跨平台打开浏览器，失败不抛错（调用方会打印 URL 供手动打开） */
 export function openBrowser(url: string): void {
@@ -13,6 +14,7 @@ export function openBrowser(url: string): void {
     const child = spawn(command, args, {
       detached: true,
       stdio: 'ignore',
+      env: childEnvWithoutCredentials(),
     });
     child.on('error', () => {});
     child.unref();

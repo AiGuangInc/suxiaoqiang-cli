@@ -25,6 +25,7 @@ export interface LoginOptions {
   token?: string;
   pat?: boolean;
   stdin?: boolean;
+  browser?: boolean;
 }
 
 /** 先校验显式凭证，成功后再替换本地凭证。 */
@@ -78,9 +79,9 @@ export async function loginCommand(options: LoginOptions = {}): Promise<void> {
   const uuid = randomUUID();
   const authUrl = `${getApiBase()}/web/cli-token-callback?uuid=${uuid}`;
 
-  logger.info(t('login.openBrowser'));
+  if (options.browser !== false) logger.info(t('login.openBrowser'));
   logger.info(authUrl);
-  openBrowser(authUrl);
+  if (options.browser !== false) openBrowser(authUrl);
 
   const spinner = ora(t('login.waiting')).start();
   const deadline = Date.now() + POLL_TIMEOUT_MS;

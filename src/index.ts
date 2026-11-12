@@ -1,6 +1,6 @@
 import { Command, Option } from 'commander';
 import { spawn } from 'node:child_process';
-import { loginCommand } from './commands/login.js';
+import { loginCommand, type LoginOptions } from './commands/login.js';
 import { logoutCommand } from './commands/logout.js';
 import { linkCommand } from './commands/link.js';
 import { pullCommand } from './commands/pull.js';
@@ -92,9 +92,8 @@ program
   .addOption(new Option('--token <token>', t('cmd.loginToken')).conflicts(['pat', 'stdin']))
   .addOption(new Option('--pat', t('cmd.loginPat')).conflicts('stdin'))
   .option('--stdin', t('cmd.loginStdin'))
-  .action(async (options: { yes?: boolean; token?: string; pat?: boolean; stdin?: boolean }) => {
-    await loginCommand(options);
-  });
+  .addOption(new Option('--no-browser', t('cmd.loginNoBrowser')).conflicts(['pat', 'stdin', 'token']))
+  .action((options: LoginOptions) => loginCommand(options));
 
 program.command('logout')
   .description(t('cmd.logout'))
