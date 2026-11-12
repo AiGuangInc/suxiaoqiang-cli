@@ -1,4 +1,4 @@
 {
-  "version": "1.1.6",
-  "notes": "### Changes\n- Fix first-pull gateway timeouts on large projects by always requesting metadata without file contents.\n- Apply local ignore rules before downloading required file contents by immutable rowKey, using the existing limit of four concurrent requests.\n- Preserve snapshot baselines, incremental synchronization, three-way merge and deferred worktree writes.\n\n### Validation\n- Build, TypeScript checks and package inspection passed.\n- Local CLI diagnostics verified metadata-only initial listing, ignored-file exclusion, four concurrent downloads, incremental downloads and preservation of local edits."
+  "version": "1.1.7",
+  "notes": "### 变更\n- 登录支持 --no-browser，由宿主打开远程授权链接，原进程等待回调。\n- Git、npm 与浏览器子进程不继承 superun 业务凭据。"
 }

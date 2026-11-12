@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
 import { logger } from './logger.js';
 import { t } from './i18n.js';
+import { childEnvWithoutCredentials } from './child-env.js';
 import type { GitSyncContext } from '../types/index.js';
 
 interface GitResult {
@@ -12,7 +13,7 @@ interface GitResult {
 
 function runGit(args: string[], cwd: string = process.cwd()): Promise<GitResult> {
   return new Promise((resolveResult) => {
-    execFile('git', args, { cwd, encoding: 'utf-8' }, (error, stdout) => {
+    execFile('git', args, { cwd, encoding: 'utf-8', env: childEnvWithoutCredentials() }, (error, stdout) => {
       resolveResult({
         code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
         stdout: stdout.trim(),
